@@ -2,9 +2,10 @@ import { getApp } from "@/actions/get-app";
 import { freestyle } from "@/lib/freestyle";
 import { getAppIdFromHeaders } from "@/lib/utils";
 import { MCPClient } from "@mastra/mcp";
-import { builderAgent } from "@/mastra/agents/builder";
+import { getBuilderAgent } from "@/mastra/agents/builder";
 import { bufferedResponse } from "@/lib/buffered-response";
 import { CoreMessage } from "@mastra/core";
+import { cookies } from "next/headers";
 
 export async function POST(req: Request) {
   const appId = getAppIdFromHeaders(req);
@@ -36,7 +37,9 @@ export async function POST(req: Request) {
 
   const toolsets = await mcp.getToolsets();
 
-  const stream = await builderAgent.stream(message.content, {
+  const cookieStore = await cookies();
+  const anonId = cookieStore.get("anonId")?.value;
+  const stream = await getBuilderAgent(anonId).then(agent => agent.stream(message.content, {
     threadId: appId,
     resourceId: appId,
     maxSteps: 100,
@@ -54,7 +57,7 @@ export async function POST(req: Request) {
       await mcp.disconnect();
     },
     toolCallStreaming: true,
-  });
+  }));
 
   return bufferedResponse(stream.toDataStream());
 }

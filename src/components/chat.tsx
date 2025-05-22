@@ -7,6 +7,7 @@ import { ChangeEvent, useEffect } from "react";
 import { ChatContainer } from "./ui/chat-container";
 import { Message } from "ai";
 import { ToolMessage } from "./tools";
+import { IntegrationsButton } from "./IntegrationsButton";
 
 export default function Chat(props: {
   appId: string;
@@ -79,6 +80,7 @@ export default function Chat(props: {
         </ChatContainer>
       </div>
       <div className="p-3 transition-all bg-background backdrop-blur-sm z-10">
+        <IntegrationsButton mode="manage" />
         <PromptInputBasic
           input={input || ""}
           onSubmit={onSubmit}
@@ -130,7 +132,7 @@ function MessageBody({ message }: { message: Message }) {
                   {part.toolInvocation.result?.content?.map(
                     (content: { type: "text"; text: string }, i: number) => (
                       <div key={i}>{content.text}</div>
-                    ),
+                    )
                   )}
                   {/* Unexpectedly failed while using tool{" "}
                   {part.toolInvocation.toolName}. Please try again. again. */}

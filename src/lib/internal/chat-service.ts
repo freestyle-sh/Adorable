@@ -47,7 +47,7 @@ export class ChatService {
       await this.manageStreamLifecycle(appId);
 
       // Get MCP server with resilience
-      const { mcpEphemeralUrl } = await Resilience.withResilience(
+      const { mcpEphemeralUrl, fs } = await Resilience.withResilience(
         () => freestyle.requestDevServer({ repoId: app.info.gitRepo }),
         "mcp-server-request",
         { maxAttempts: 2, baseDelay: 500 },
@@ -62,6 +62,7 @@ export class ChatService {
               builderAgent,
               appId,
               mcpEphemeralUrl,
+              fs,
               messages.at(-1)!
             ),
           "streaming",

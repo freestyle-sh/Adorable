@@ -1,63 +1,26 @@
-import { getApp } from "@/actions/get-app";
-import { freestyle } from "@/lib/freestyle";
+import { NextRequest } from "next/server";
 import { getAppIdFromHeaders } from "@/lib/utils";
-import { UIMessage } from "ai";
-import { builderAgent } from "@/mastra/agents/builder";
+import { ChatService } from "@/lib/internal/chat-service";
 
 // "fix" mastra mcp bug
 import { EventEmitter } from "events";
-import {
-  isStreamRunning,
-  stopStream,
-  waitForStreamToStop,
-  clearStreamState,
-  sendMessageWithStreaming,
-} from "@/lib/internal/stream-manager";
 EventEmitter.defaultMaxListeners = 1000;
 
-import { NextRequest } from "next/server";
-
 export async function POST(req: NextRequest) {
-  console.log("creating new chat stream");
-  const appId = getAppIdFromHeaders(req);
+  console.log("Creating new chat stream");
 
+  // Get app ID from headers
+  const appId = getAppIdFromHeaders(req);
   if (!appId) {
     return new Response("Missing App Id header", { status: 400 });
   }
 
-  const app = await getApp(appId);
-  if (!app) {
-    return new Response("App not found", { status: 404 });
+  // Validate request
+  const validationError = ChatService.validateChatRequest(req);
+  if (validationError) {
+    return validationError;
   }
 
-  // Check if a stream is already running and stop it if necessary
-  if (await isStreamRunning(appId)) {
-    console.log("Stopping previous stream for appId:", appId);
-    await stopStream(appId);
-
-    // Wait until stream state is cleared
-    const stopped = await waitForStreamToStop(appId);
-    if (!stopped) {
-      await clearStreamState(appId);
-      return new Response(
-        "Previous stream is still shutting down, please try again",
-        { status: 429 }
-      );
-    }
-  }
-
-  const { messages }: { messages: UIMessage[] } = await req.json();
-
-  const { mcpEphemeralUrl } = await freestyle.requestDevServer({
-    repoId: app.info.gitRepo,
-  });
-
-  const resumableStream = await sendMessageWithStreaming(
-    builderAgent,
-    appId,
-    mcpEphemeralUrl,
-    messages.at(-1)!
-  );
-
-  return resumableStream.response();
+  // Process chat request with all the durability features
+  return await ChatService.processChatRequest(req, appId);
 }

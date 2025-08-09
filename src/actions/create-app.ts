@@ -47,7 +47,7 @@ export async function createApp({
   console.timeEnd("git");
 
   console.time("dev server");
-  const { mcpEphemeralUrl } = await freestyle.requestDevServer({
+  const { mcpEphemeralUrl, fs } = await freestyle.requestDevServer({
     repoId: repo.repoId,
   });
   console.timeEnd("dev server");
@@ -89,7 +89,7 @@ export async function createApp({
     console.time("send initial message");
 
     // Send the initial message using the same infrastructure as the chat API
-    await sendMessageWithStreaming(builderAgent, app.id, mcpEphemeralUrl, {
+    await sendMessageWithStreaming(builderAgent, app.id, mcpEphemeralUrl, fs, {
       id: crypto.randomUUID(),
       parts: [
         {

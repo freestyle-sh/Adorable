@@ -6,6 +6,8 @@
 
 Open-source version of **Lovable** - an AI agent that can make websites and apps through a chat interface.
 
+For guidance on building app builders with AI, see the [Freestyle guide on Building an App Builder](https://docs.freestyle.sh/guides/app-builder).
+
 ## Features
 
 - Chat interface for interacting with AI code assistants
@@ -100,13 +102,27 @@ Finally, add the following environment variable to your `.env` file:
 PREVIEW_DOMAIN=<your-domain> # formatted like adorable.app
 ```
 
-8. Run the development server:
+8. Add Morph for Fast Apply (optional)
+
+Get a Morph API key from [morphllm.com](https://morphllm.com) and add it to your `.env` file to enable the fast edit tool:
+
+```env
+MORPH_API_KEY=<your-morph-api-key>
+```
+
+This automatically enables the Morph fast edit tool which provides faster code modifications.
+
+9. Run the development server:
 
    ```bash
    npm run dev
    ```
 
-9. Open [http://localhost:3000](http://localhost:3000) in your browser.
+10. Open [http://localhost:3000](http://localhost:3000) in your browser.
+
+## Developer Documentation
+
+- [Forking Guide](./docs/forking.md) - Comprehensive guide for developers working with this codebase
 
 ## Deployment
 

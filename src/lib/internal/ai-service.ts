@@ -3,6 +3,8 @@ import { MCPClient } from "@mastra/mcp";
 import { Agent } from "@mastra/core/agent";
 import { MessageList } from "@mastra/core/agent";
 import { builderAgent } from "@/mastra/agents/builder";
+import { morphTool } from "@/tools/morph-tool";
+import { FreestyleDevServerFilesystem } from "freestyle-sandboxes";
 
 export interface AIStreamOptions {
   threadId: string;
@@ -60,6 +62,7 @@ export class AIService {
     agent: Agent,
     appId: string,
     mcpUrl: string,
+    fs: FreestyleDevServerFilesystem,
     message: UIMessage,
     options?: Partial<AIStreamOptions>
   ): Promise<AIResponse> {
@@ -72,7 +75,7 @@ export class AIService {
       },
     });
 
-    const toolsets = await mcp.getToolsets();
+    const freestyleToolsets = await mcp.getToolsets();
 
     // Save message to memory
     const memory = await agent.getMemory();
@@ -106,7 +109,16 @@ export class AIService {
       maxSteps: options?.maxSteps ?? 100,
       maxRetries: options?.maxRetries ?? 0,
       maxOutputTokens: options?.maxOutputTokens ?? 64000,
-      toolsets,
+      toolsets: {
+        ...(process.env.MORPH_API_KEY
+          ? {
+              morph: {
+                edit_file: morphTool(fs),
+              },
+            }
+          : {}),
+        ...freestyleToolsets,
+      },
       async onChunk() {
         options?.onChunk?.();
       },

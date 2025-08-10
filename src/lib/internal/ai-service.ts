@@ -6,6 +6,36 @@ import { builderAgent } from "@/mastra/agents/builder";
 import { morphTool } from "@/tools/morph-tool";
 import { FreestyleDevServerFilesystem } from "freestyle-sandboxes";
 
+// Helper function to convert UI message parts to Anthropic format
+function convertMessagePartsToAnthropicFormat(parts: UIMessage["parts"]): any[] {
+  return parts.map((part) => {
+    if (part.type === "text") {
+      return {
+        type: "text",
+        text: part.text,
+      };
+    } else if (part.type === "file" && part.mediaType?.startsWith("image/")) {
+      // Convert to Mastra image format
+      if (!part.url) {
+        console.error("Image part missing URL:", part);
+        return {
+          type: "text",
+          text: "[Image upload failed - no URL]",
+        };
+      }
+      
+      // Mastra expects image format with 'image' field and 'mimeType'
+      return {
+        type: "image",
+        image: part.url, // Use the full data URL as-is
+        mimeType: part.mediaType,
+      };
+    }
+    // Return other parts as-is for compatibility
+    return part;
+  });
+}
+
 export interface AIStreamOptions {
   threadId: string;
   resourceId: string;
@@ -77,16 +107,47 @@ export class AIService {
 
     const freestyleToolsets = await mcp.getToolsets();
 
-    // Save message to memory
+    // Convert message parts to Anthropic format for proper AI processing
+    const convertedParts = convertMessagePartsToAnthropicFormat(message.parts);
+    
+    console.log(`🤖 AI Service processing message:`, {
+      messageId: message.id,
+      originalPartsCount: message.parts.length,
+      convertedPartsCount: convertedParts.length,
+      imageCount: message.parts.filter((p: any) => p.type === 'file').length,
+      textCount: message.parts.filter((p: any) => p.type === 'text').length,
+      parts: message.parts.map((p: any, index: number) => ({ 
+        index,
+        type: p.type, 
+        hasText: p.type === 'text' ? !!p.text : false,
+        hasUrl: p.type === 'file' ? !!p.url : false,
+        mediaType: p.mediaType 
+      })),
+      convertedParts: convertedParts.map((p: any, index: number) => ({
+        index,
+        type: p.type,
+        hasText: p.type === 'text' ? !!p.text : false,
+        hasImageData: p.type === 'image' ? !!p.image : false,
+        mimeType: p.type === 'image' ? p.mimeType : undefined
+      }))
+    });
+    
+    // Create a properly formatted message for the AI agent
+    const agentMessage = {
+      role: "user" as const,
+      content: convertedParts,
+    };
+
+    // Save original message to memory (keeping UI format for display)
     const memory = await agent.getMemory();
     if (memory) {
       await memory.saveMessages({
         messages: [
-          {
-            content: {
-              parts: message.parts,
-              format: 3,
-            },
+                  {
+          content: {
+            parts: message.parts as any,
+            format: 3,
+          },
             role: "user",
             createdAt: new Date(),
             id: message.id,
@@ -103,43 +164,58 @@ export class AIService {
       threadId: appId,
     });
 
-    const stream = await agent.stream([], {
-      threadId: appId,
-      resourceId: appId,
-      maxSteps: options?.maxSteps ?? 100,
-      maxRetries: options?.maxRetries ?? 0,
-      maxOutputTokens: options?.maxOutputTokens ?? 64000,
-      toolsets: {
-        ...(process.env.MORPH_API_KEY
-          ? {
-              morph: {
-                edit_file: morphTool(fs),
-              },
-            }
-          : {}),
-        ...freestyleToolsets,
-      },
-      async onChunk() {
-        options?.onChunk?.();
-      },
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      async onStepFinish(step: { response: { messages: unknown[] } }) {
+    // Pass the converted message to the agent instead of empty array
+    let stream;
+    try {
+      console.log(`🎯 About to call agent.stream with agentMessage:`, {
+        role: agentMessage.role,
+        contentLength: agentMessage.content?.length,
+        contentTypes: agentMessage.content?.map((c: any) => c.type)
+      });
+      
+      stream = await agent.stream([agentMessage], {
+        threadId: appId,
+        resourceId: appId,
+        maxSteps: options?.maxSteps ?? 100,
+        maxRetries: options?.maxRetries ?? 0,
+        maxOutputTokens: options?.maxOutputTokens ?? 64000,
+        toolsets: {
+          ...(process.env.MORPH_API_KEY
+            ? {
+                morph: {
+                  edit_file: morphTool(fs),
+                },
+              }
+            : {}),
+          ...freestyleToolsets,
+        },
+        async onChunk() {
+          options?.onChunk?.();
+        },
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        messageList.add(step.response.messages as any, "response");
-        options?.onStepFinish?.(step);
-      },
-      onError: async (error: { error: unknown }) => {
-        // Handle cleanup internally
-        await mcp.disconnect();
-        options?.onError?.(error);
-      },
-      onFinish: async () => {
-        // Handle cleanup internally
-        await mcp.disconnect();
-        options?.onFinish?.();
-      },
-      abortSignal: options?.abortSignal,
-    });
+        async onStepFinish(step: { response: { messages: unknown[] } }) {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          messageList.add(step.response.messages as any, "response");
+          options?.onStepFinish?.(step);
+        },
+        onError: async (error: { error: unknown }) => {
+          // Handle cleanup internally
+          await mcp.disconnect();
+          options?.onError?.(error);
+        },
+        onFinish: async () => {
+          // Handle cleanup internally
+          await mcp.disconnect();
+          options?.onFinish?.();
+        },
+        abortSignal: options?.abortSignal,
+      });
+    } catch (error) {
+      console.error(`💥 Error calling agent.stream:`, error);
+      console.error(`🔍 Agent message that failed:`, JSON.stringify(agentMessage, null, 2));
+      await mcp.disconnect();
+      throw error;
+    }
 
     // Ensure the stream has the proper method
     if (!stream.toUIMessageStreamResponse) {

@@ -1,7 +1,7 @@
 import { UIMessage } from "ai";
 import { after } from "next/server";
 import { createResumableStreamContext } from "resumable-stream";
-import { redis, redisPublisher } from "./redis";
+import { getRedis, getRedisPublisher } from "./redis";
 import { AIService } from "./ai-service";
 import { Agent } from "@mastra/core/agent";
 import { FreestyleDevServerFilesystem } from "freestyle-sandboxes";
@@ -27,7 +27,15 @@ export interface StreamInfo {
  * Get the current stream state for an app
  */
 export async function getStreamState(appId: string): Promise<StreamState> {
-  const state = await redisPublisher.get(`app:${appId}:stream-state`);
+  const redisPublisher = await getRedisPublisher();
+  let state = null;
+  if (redisPublisher) {
+    try {
+      state = await redisPublisher.get(`app:${appId}:stream-state`);
+    } catch (error) {
+      console.warn("Failed to get stream state from Redis:", error);
+    }
+  }
   return { state };
 }
 
@@ -35,19 +43,34 @@ export async function getStreamState(appId: string): Promise<StreamState> {
  * Check if a stream is currently running for an app
  */
 export async function isStreamRunning(appId: string): Promise<boolean> {
-  const state = await redisPublisher.get(`app:${appId}:stream-state`);
-  return state === "running";
+  const redisPublisher = await getRedisPublisher();
+  if (redisPublisher) {
+    try {
+      const state = await redisPublisher.get(`app:${appId}:stream-state`);
+      return state === "running";
+    } catch (error) {
+      console.warn("Failed to check stream state from Redis:", error);
+    }
+  }
+  return false;
 }
 
 /**
  * Stop a running stream for an app
  */
 export async function stopStream(appId: string): Promise<void> {
-  await redisPublisher.publish(
-    `events:${appId}`,
-    JSON.stringify({ type: "abort-stream" })
-  );
-  await redisPublisher.del(`app:${appId}:stream-state`);
+  const redisPublisher = await getRedisPublisher();
+  if (redisPublisher) {
+    try {
+      await redisPublisher.publish(
+        `events:${appId}`,
+        JSON.stringify({ type: "abort-stream" })
+      );
+      await redisPublisher.del(`app:${appId}:stream-state`);
+    } catch (error) {
+      console.warn("Failed to stop stream via Redis:", error);
+    }
+  }
 }
 
 /**
@@ -57,10 +80,20 @@ export async function waitForStreamToStop(
   appId: string,
   maxAttempts: number = 60
 ): Promise<boolean> {
+  const redisPublisher = await getRedisPublisher();
+  if (!redisPublisher) {
+    return true; // If Redis is not available, assume stream is stopped
+  }
+  
   for (let i = 0; i < maxAttempts; i++) {
-    const state = await redisPublisher.get(`app:${appId}:stream-state`);
-    if (!state) {
-      return true;
+    try {
+      const state = await redisPublisher.get(`app:${appId}:stream-state`);
+      if (!state) {
+        return true;
+      }
+    } catch (error) {
+      console.warn("Failed to check stream state:", error);
+      return true; // If Redis fails, assume stream is stopped
     }
     await new Promise((resolve) => setTimeout(resolve, 1000));
   }
@@ -71,7 +104,14 @@ export async function waitForStreamToStop(
  * Clear the stream state for an app
  */
 export async function clearStreamState(appId: string): Promise<void> {
-  await redisPublisher.del(`app:${appId}:stream-state`);
+  const redisPublisher = await getRedisPublisher();
+  if (redisPublisher) {
+    try {
+      await redisPublisher.del(`app:${appId}:stream-state`);
+    } catch (error) {
+      console.warn("Failed to clear stream state from Redis:", error);
+    }
+  }
 }
 
 /**
@@ -131,9 +171,14 @@ export async function setStream(
     );
   }
 
-  await redisPublisher.set(`app:${appId}:stream-state`, "running", {
-    EX: 15,
-  });
+  const redisPublisher = await getRedisPublisher();
+  if (redisPublisher) {
+    try {
+      await redisPublisher.setEx(`app:${appId}:stream-state`, 15, "running");
+    } catch (error) {
+      console.warn("Failed to set stream state in Redis:", error);
+    }
+  }
 
   const resumableStream = await streamContext.createNewResumableStream(
     appId,
@@ -152,11 +197,19 @@ export async function setStream(
   return {
     response() {
       // Set up abort callback directly since this is a synchronous context
-      redis.subscribe(`events:${appId}`, (event) => {
-        const data = JSON.parse(event);
-        if (data.type === "abort-stream") {
-          console.log("cancelling http stream");
-          resumableStream?.cancel();
+      getRedis().then((redis) => {
+        if (redis) {
+          try {
+            redis.subscribe(`events:${appId}`, (event: string) => {
+              const data = JSON.parse(event);
+              if (data.type === "abort-stream") {
+                console.log("cancelling http stream");
+                resumableStream?.cancel();
+              }
+            });
+          } catch (error) {
+            console.warn("Failed to set up Redis subscription:", error);
+          }
         }
       });
 
@@ -181,21 +234,33 @@ export async function setupAbortCallback(
   appId: string,
   callback: () => void
 ): Promise<void> {
-  redis.subscribe(`events:${appId}`, (event) => {
-    const data = JSON.parse(event);
-    if (data.type === "abort-stream") {
-      callback();
+  const redis = await getRedis();
+  if (redis) {
+    try {
+      redis.subscribe(`events:${appId}`, (event: string) => {
+        const data = JSON.parse(event);
+        if (data.type === "abort-stream") {
+          callback();
+        }
+      });
+    } catch (error) {
+      console.warn("Failed to set up abort callback via Redis:", error);
     }
-  });
+  }
 }
 
 /**
  * Update the keep-alive timestamp for a stream
  */
 export async function updateKeepAlive(appId: string): Promise<void> {
-  await redisPublisher.set(`app:${appId}:stream-state`, "running", {
-    EX: 15,
-  });
+  const redisPublisher = await getRedisPublisher();
+  if (redisPublisher) {
+    try {
+      await redisPublisher.setEx(`app:${appId}:stream-state`, 15, "running");
+    } catch (error) {
+      console.warn("Failed to update keep-alive in Redis:", error);
+    }
+  }
 }
 
 /**

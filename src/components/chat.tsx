@@ -136,28 +136,50 @@ function MessageBody({ message }: { message: any }) {
     return (
       <div className="flex justify-end py-1 mb-4">
         <div className="bg-neutral-200 dark:bg-neutral-700 rounded-xl px-4 py-1 max-w-[80%] ml-auto">
-          {message.parts.map((part: any, index: number) => {
-            if (part.type === "text") {
-              return <div key={index}>{part.text}</div>;
-            } else if (
-              part.type === "file" &&
-              part.mediaType?.startsWith("image/")
-            ) {
-              return (
-                <div key={index} className="mt-2">
-                  <Image
-                    src={part.url as string}
-                    alt="User uploaded image"
-                    width={200}
-                    height={200}
-                    className="max-w-full h-auto rounded"
-                    style={{ maxHeight: "200px" }}
-                  />
-                </div>
-              );
-            }
-            return <div key={index}>unexpected message</div>;
-          })}
+          {/* Text parts */}
+          {message.parts.filter((part: any) => part.type === "text").map((part: any, index: number) => (
+            <div key={`text-${index}`}>{part.text}</div>
+          ))}
+          
+          {/* Image parts */}
+          {(() => {
+            const imageParts = message.parts.filter((part: any) => part.type === "file" && part.mediaType?.startsWith("image/"));
+            if (imageParts.length === 0) return null;
+            
+            // Determine grid layout based on number of images
+            let gridCols = "grid-cols-1";
+            if (imageParts.length === 2) gridCols = "grid-cols-2";
+            else if (imageParts.length >= 3) gridCols = "grid-cols-2 sm:grid-cols-3";
+            
+            return (
+              <div className={`mt-2 grid ${gridCols} gap-2 max-w-md`}>
+                {imageParts.map((part: any, index: number) => (
+                  <div key={`image-${index}`} className="relative">
+                    <Image
+                      src={part.url as string}
+                      alt={`User uploaded image ${index + 1}`}
+                      width={150}
+                      height={150}
+                      className="w-full h-auto rounded border max-h-32 object-cover hover:scale-105 transition-transform cursor-pointer"
+                      onClick={() => window.open(part.url, '_blank')}
+                    />
+                    {imageParts.length > 1 && (
+                      <div className="absolute top-1 right-1 bg-black bg-opacity-60 text-white text-xs px-1 py-0.5 rounded">
+                        {index + 1}
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            );
+          })()}
+          
+          {/* Handle any unexpected parts */}
+          {message.parts.filter((part: any) => part.type !== "text" && !(part.type === "file" && part.mediaType?.startsWith("image/"))).map((part: any, index: number) => (
+            <div key={`other-${index}`} className="text-xs text-gray-500 mt-1">
+              [Unsupported content type: {part.type}]
+            </div>
+          ))}
         </div>
       </div>
     );

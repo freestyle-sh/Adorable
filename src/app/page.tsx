@@ -1,17 +1,27 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { PromptInput, PromptInputActions } from "@/components/ui/prompt-input";
-import { FrameworkSelector } from "@/components/framework-selector";
 import Image from "next/image";
 import LogoSvg from "@/logo.svg";
 import { useState } from "react";
-import { Button } from "@/components/ui/button";
 import { ExampleButton } from "@/components/ExampleButton";
 import { UserButton } from "@stackframe/stack";
 import { UserApps } from "@/components/user-apps";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { PromptInputTextareaWithTypingAnimation } from "@/components/prompt-input";
+import { CompressedImage } from "@/lib/image-compression";
+import dynamic from "next/dynamic";
+
+const EnhancedPromptInput = dynamic(
+  () => import("@/components/enhanced-prompt-input").then(mod => ({ default: mod.EnhancedPromptInput })),
+  { 
+    ssr: false,
+    loading: () => (
+      <div className="w-full bg-accent rounded-md border p-4 animate-pulse">
+        <div className="h-12 bg-gray-200 rounded"></div>
+      </div>
+    )
+  }
+);
 
 const queryClient = new QueryClient();
 
@@ -19,14 +29,57 @@ export default function Home() {
   const [prompt, setPrompt] = useState("");
   const [framework, setFramework] = useState("nextjs");
   const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState("");
   const router = useRouter();
 
-  const handleSubmit = async () => {
+  const handleSubmit = async (text: string, images: CompressedImage[]) => {
     setIsLoading(true);
+    setError("");
 
-    router.push(
-      `/app/new?message=${encodeURIComponent(prompt)}&template=${framework}`
-    );
+    try {
+      // Create a message parts structure similar to what the chat uses
+      const messageParts = [];
+      
+      if (text.trim()) {
+        messageParts.push({
+          type: "text",
+          text: text,
+        });
+      }
+
+      images.forEach((image) => {
+        messageParts.push({
+          type: "file",
+          mediaType: image.mimeType,
+          url: image.data,
+        });
+      });
+
+      // Store the message data via API and get a reference ID
+      const response = await fetch("/api/initial-message", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          parts: messageParts,
+          templateId: framework,
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error("Failed to store message data");
+      }
+
+      const { messageId } = await response.json();
+
+      // Navigate with just the message ID
+      router.push(`/app/new?messageId=${messageId}`);
+    } catch (error) {
+      console.error("Error creating app:", error);
+      setError("Failed to create app. Please try again.");
+      setIsLoading(false);
+    }
   };
 
   return (
@@ -55,39 +108,19 @@ export default function Home() {
             </p>
 
             <div className="w-full relative my-5">
-              <div className="relative w-full max-w-full overflow-hidden">
-                <div className="w-full bg-accent rounded-md relative z-10 border transition-colors">
-                  <PromptInput
-                    leftSlot={
-                      <FrameworkSelector
-                        value={framework}
-                        onChange={setFramework}
-                      />
-                    }
-                    isLoading={isLoading}
-                    value={prompt}
-                    onValueChange={setPrompt}
-                    onSubmit={handleSubmit}
-                    className="relative z-10 border-none bg-transparent shadow-none focus-within:border-gray-400 focus-within:ring-1 focus-within:ring-gray-200 transition-all duration-200 ease-in-out "
-                  >
-                    <PromptInputTextareaWithTypingAnimation />
-                    <PromptInputActions>
-                      <Button
-                        variant={"ghost"}
-                        size="sm"
-                        onClick={handleSubmit}
-                        disabled={isLoading || !prompt.trim()}
-                        className="h-7 text-xs"
-                      >
-                        <span className="hidden sm:inline">
-                          Start Creating ⏎
-                        </span>
-                        <span className="sm:hidden">Create ⏎</span>
-                      </Button>
-                    </PromptInputActions>
-                  </PromptInput>
+              {error && (
+                <div className="mb-3 p-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm">
+                  {error}
                 </div>
-              </div>
+              )}
+              <EnhancedPromptInput
+                prompt={prompt}
+                onPromptChange={setPrompt}
+                framework={framework}
+                onFrameworkChange={setFramework}
+                isLoading={isLoading}
+                onSubmit={handleSubmit}
+              />
             </div>
             <Examples setPrompt={setPrompt} />
             <div className="mt-8 mb-16">

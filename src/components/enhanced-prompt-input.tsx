@@ -1,44 +1,34 @@
 "use client";
 
+import { useState, useRef } from "react";
 import Image from "next/image";
-import {
-  PromptInput,
-  // PromptInputAction,
-  // PromptInputActions,
-  PromptInputTextarea,
-} from "@/components/ui/prompt-input";
+import { PromptInput, PromptInputActions } from "@/components/ui/prompt-input";
+import { PromptInputTextareaWithTypingAnimation } from "@/components/prompt-input";
 import { Button } from "@/components/ui/button";
-import { ArrowUp, SquareIcon, Paperclip, X } from "lucide-react";
-import { useState, useEffect, useRef } from "react";
+import { FrameworkSelector } from "@/components/framework-selector";
+import { Paperclip, X } from "lucide-react";
 import { compressImage, CompressedImage } from "@/lib/image-compression";
 
-interface PromptInputBasicProps {
-  onSubmit?: (e?: React.FormEvent<HTMLFormElement>) => void;
-  onSubmitWithImages?: (text: string, images: CompressedImage[]) => void;
-  isGenerating?: boolean;
-  input?: string;
-  disabled?: boolean;
-  onValueChange?: (value: string) => void;
-  stop: () => void;
+interface EnhancedPromptInputProps {
+  prompt: string;
+  onPromptChange: (value: string) => void;
+  framework: string;
+  onFrameworkChange: (value: string) => void;
+  isLoading: boolean;
+  onSubmit: (prompt: string, images: CompressedImage[]) => void;
 }
 
-export function PromptInputBasic({
-  onSubmit: handleSubmit,
-  onSubmitWithImages,
-  stop,
-  isGenerating = false,
-  input = "",
-  onValueChange,
-  disabled,
-}: PromptInputBasicProps) {
-  const [isLoading, setIsLoading] = useState(false);
+export function EnhancedPromptInput({
+  prompt,
+  onPromptChange,
+  framework,
+  onFrameworkChange,
+  isLoading,
+  onSubmit,
+}: EnhancedPromptInputProps) {
   const [images, setImages] = useState<CompressedImage[]>([]);
   const [isCompressing, setIsCompressing] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
-
-  useEffect(() => {
-    setIsLoading(isGenerating);
-  }, [isGenerating]);
 
   const MAX_IMAGES = 5; // Maximum number of images allowed
 
@@ -84,20 +74,15 @@ export function PromptInputBasic({
     setImages((prev) => prev.filter((_, i) => i !== index));
   };
 
-  const handleSubmitWithData = () => {
-    if (onSubmitWithImages && (input.trim() || images.length > 0)) {
-      onSubmitWithImages(input, images);
-      setImages([]);
-    } else if (handleSubmit) {
-      handleSubmit();
-    }
+  const handleSubmit = () => {
+    onSubmit(prompt, images);
   };
 
   return (
-    <div className="relative w-full">
+    <div className="w-full">
       {/* Image previews */}
       {images.length > 0 && (
-        <div className="mb-2 p-2 bg-gray-50 dark:bg-gray-800 rounded-lg">
+        <div className="mb-3 p-3 bg-gray-50 dark:bg-gray-800 rounded-lg">
           <div className="flex items-center justify-between mb-2">
             <span className="text-sm text-gray-600 dark:text-gray-400">
               {images.length} image{images.length > 1 ? 's' : ''} selected
@@ -134,26 +119,56 @@ export function PromptInputBasic({
         </div>
       )}
 
-      <PromptInput
-        value={input}
-        onValueChange={(value) => onValueChange?.(value)}
-        isLoading={isLoading || isCompressing}
-        onSubmit={handleSubmitWithData}
-        className="w-full border dark:bg-accent shadow-sm rounded-lg border-gray-300focus-within:border-gray-400 focus-within:ring-1 transition-all duration-200 ease-in-out focus-within:ring-gray-200 border-gray-300"
-      >
-        <PromptInputTextarea
-          placeholder={
-            isGenerating
-              ? "Adorable is working..."
-              : isCompressing
-                ? "Compressing images..."
-                : "Type your message here..."
-          }
-          className="pr-20 bg-transparent dark:bg-transparent"
-          disabled={disabled}
-        />
-      </PromptInput>
+      <div className="relative w-full max-w-full overflow-hidden">
+        <div className="w-full bg-accent rounded-md relative z-10 border transition-colors">
+          <PromptInput
+            leftSlot={
+              <FrameworkSelector
+                value={framework}
+                onChange={onFrameworkChange}
+              />
+            }
+            isLoading={isLoading || isCompressing}
+            value={prompt}
+            onValueChange={onPromptChange}
+            onSubmit={handleSubmit}
+            className="relative z-10 border-none bg-transparent shadow-none focus-within:border-gray-400 focus-within:ring-1 focus-within:ring-gray-200 transition-all duration-200 ease-in-out"
+          >
+            <PromptInputTextareaWithTypingAnimation />
+            <PromptInputActions>
+              {/* Image upload button */}
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-7 text-xs"
+                onClick={() => fileInputRef.current?.click()}
+                disabled={isLoading || isCompressing}
+                type="button"
+              >
+                <Paperclip className="h-3 w-3" />
+              </Button>
+              
+              {/* Submit button */}
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={handleSubmit}
+                disabled={isLoading || isCompressing || (!prompt.trim() && images.length === 0)}
+                className="h-7 text-xs"
+              >
+                <span className="hidden sm:inline">
+                  {isCompressing ? "Processing..." : "Start Creating ⏎"}
+                </span>
+                <span className="sm:hidden">
+                  {isCompressing ? "..." : "Create ⏎"}
+                </span>
+              </Button>
+            </PromptInputActions>
+          </PromptInput>
+        </div>
+      </div>
 
+      {/* Hidden file input */}
       <input
         ref={fileInputRef}
         type="file"
@@ -162,49 +177,6 @@ export function PromptInputBasic({
         onChange={handleFileSelect}
         className="hidden"
       />
-
-      <div className="absolute right-3 bottom-3 flex gap-1">
-        <Button
-          variant="ghost"
-          size="icon"
-          className="h-8 w-8 rounded-full relative"
-          onClick={() => fileInputRef.current?.click()}
-          disabled={isGenerating || disabled || images.length >= MAX_IMAGES}
-          title={images.length >= MAX_IMAGES ? `Maximum ${MAX_IMAGES} images allowed` : "Attach images"}
-        >
-          <Paperclip className="h-4 w-4" />
-          {images.length > 0 && (
-            <span className="absolute -top-1 -right-1 bg-blue-500 text-white text-xs rounded-full w-4 h-4 flex items-center justify-center">
-              {images.length}
-            </span>
-          )}
-        </Button>
-
-        {isGenerating ? (
-          <Button
-            variant={"default"}
-            size="icon"
-            className="h-8 w-8 rounded-full"
-            onClick={stop}
-          >
-            <SquareIcon className="h-4 w-4" />
-          </Button>
-        ) : (
-          <Button
-            variant={"default"}
-            size="icon"
-            className="h-8 w-8 rounded-full"
-            disabled={
-              isGenerating ||
-              disabled ||
-              (input.trim() === "" && images.length === 0)
-            }
-            onClick={handleSubmitWithData}
-          >
-            <ArrowUp className="h-4 w-4" />
-          </Button>
-        )}
-      </div>
     </div>
   );
 }

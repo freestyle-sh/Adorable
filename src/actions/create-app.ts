@@ -10,9 +10,11 @@ import { sendMessageWithStreaming } from "@/lib/internal/stream-manager";
 
 export async function createApp({
   initialMessage,
+  initialMessageParts,
   templateId,
 }: {
-  initialMessage?: string;
+  initialMessage?: string; // Kept for backward compatibility
+  initialMessageParts?: any[]; // New format supporting images
   templateId: string;
 }) {
   console.time("get user");
@@ -54,11 +56,16 @@ export async function createApp({
 
   console.time("database: create app");
   const app = await db.transaction(async (tx) => {
+    // Determine app name from message content
+    const appName = initialMessage || 
+      (initialMessageParts && initialMessageParts.find(p => p.type === "text")?.text) || 
+      "Unnamed App";
+
     const appInsertion = await tx
       .insert(appsTable)
       .values({
         gitRepo: repo.repoId,
-        name: initialMessage,
+        name: appName,
       })
       .returning();
 
@@ -85,22 +92,35 @@ export async function createApp({
   });
   console.timeEnd("mastra: create thread");
 
-  if (initialMessage) {
-    console.time("send initial message");
+  // Send initial message if provided (handle both old and new formats)
+  const messageParts = initialMessageParts || 
+    (initialMessage ? [{ text: initialMessage, type: "text" }] : null);
+
+  if (messageParts && messageParts.length > 0) {
+    console.log(`🚀 Creating app with message parts:`, {
+      appId: app.id,
+      templateId,
+      partsCount: messageParts.length,
+      imageCount: messageParts.filter((p: any) => p.type === 'file').length,
+      parts: messageParts.map((p: any) => ({ 
+        type: p.type, 
+        hasText: p.type === 'text' ? !!p.text : false,
+        hasUrl: p.type === 'file' ? !!p.url : false,
+        mediaType: p.mediaType 
+      }))
+    });
+    
+    const timingLabel = `send initial message - ${app.id}`;
+    console.time(timingLabel);
 
     // Send the initial message using the same infrastructure as the chat API
     await sendMessageWithStreaming(builderAgent, app.id, mcpEphemeralUrl, fs, {
       id: crypto.randomUUID(),
-      parts: [
-        {
-          text: initialMessage,
-          type: "text",
-        },
-      ],
+      parts: messageParts,
       role: "user",
     });
 
-    console.timeEnd("send initial message");
+    console.timeEnd(timingLabel);
   }
 
   return app;

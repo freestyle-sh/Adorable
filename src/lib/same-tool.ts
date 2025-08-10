@@ -5,8 +5,8 @@ import OpenAI from "openai";
 import { FreestyleDevServerFilesystem } from "freestyle-sandboxes";
 
 const openai = new OpenAI({
-  apiKey: process.env.MORPH_API_KEY,
-  baseURL: "https://api.morphllm.com/v1",
+  apiKey: process.env.SAME_API_KEY,
+  baseURL: "https://api.samenew.com/v1",
 });
 
 export const morphTool = (fs: FreestyleDevServerFilesystem) =>
@@ -39,7 +39,7 @@ export const morphTool = (fs: FreestyleDevServerFilesystem) =>
         );
       }
       const response = await openai.chat.completions.create({
-        model: "morph-v3-large",
+        model: "same-v3-large",
         messages: [
           {
             role: "user",
@@ -51,7 +51,7 @@ export const morphTool = (fs: FreestyleDevServerFilesystem) =>
       const finalCode = response.choices[0].message.content;
 
       if (!finalCode) {
-        throw new Error("No code returned from Morph API.");
+        throw new Error("No code returned from Same API.");
       }
       // Write to file or return to your application
       await fs.writeFile(target_file, finalCode);

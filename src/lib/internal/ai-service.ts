@@ -3,12 +3,13 @@ import { MCPClient } from "@mastra/mcp";
 import { Agent } from "@mastra/core/agent";
 import { MessageList } from "@mastra/core/agent";
 import { builderAgent } from "@/mastra/agents/builder";
+import { erpAgent } from "@/mastra/agents/erp-agent";
 import { morphTool } from "@/tools/morph-tool";
 import { FreestyleDevServerFilesystem } from "freestyle-sandboxes";
 
 export interface AIStreamOptions {
   threadId: string;
-  resourceId: string;
+  resourceId:string;
   maxSteps?: number;
   maxRetries?: number;
   maxOutputTokens?: number;
@@ -27,6 +28,9 @@ export interface AIResponse {
   };
 }
 
+
+export type AgentType = "builder" | "erp";
+
 export class AIService {
   /**
    * Send a message to the AI and get a stream response
@@ -37,7 +41,7 @@ export class AIService {
    *
    * All message list management and MCP client lifecycle is handled internally.
    *
-   * @param agent - The Mastra agent to use for AI interactions
+   * @param agentType - The type of Mastra agent to use for AI interactions
    * @param appId - The application ID
    * @param mcpUrl - The MCP server URL
    * @param message - The message to send to the AI
@@ -48,7 +52,7 @@ export class AIService {
    * ```typescript
    * import { builderAgent } from "@/mastra/agents/builder";
    *
-   * const response = await AIService.sendMessage(builderAgent, appId, mcpUrl, {
+   * const response = await AIService.sendMessage("builder", appId, mcpUrl, {
    *   id: crypto.randomUUID(),
    *   parts: [{ type: "text", text: "Build me a todo app" }],
    *   role: "user"
@@ -59,13 +63,15 @@ export class AIService {
    * ```
    */
   static async sendMessage(
-    agent: Agent,
+    agentType: AgentType,
     appId: string,
     mcpUrl: string,
     fs: FreestyleDevServerFilesystem,
     message: UIMessage,
     options?: Partial<AIStreamOptions>
   ): Promise<AIResponse> {
+    const agent = agentType === "erp" ? erpAgent : builderAgent;
+
     const mcp = new MCPClient({
       id: crypto.randomUUID(),
       servers: {
@@ -164,8 +170,8 @@ export class AIService {
    *
    * @returns The builder agent instance
    */
-  static getAgent() {
-    return builderAgent;
+  static getAgent(agentType: AgentType = "builder") {
+    return agentType === "erp" ? erpAgent : builderAgent;
   }
 
   /**
@@ -176,8 +182,9 @@ export class AIService {
    *
    * @returns Promise<Memory | undefined> - The memory instance
    */
-  static async getMemory() {
-    return await builderAgent.getMemory();
+  static async getMemory(agentType: AgentType = "builder") {
+    const agent = agentType === "erp" ? erpAgent : builderAgent;
+    return await agent.getMemory();
   }
 
   /**
@@ -203,16 +210,17 @@ export class AIService {
    * This is a utility method for when you need to manually save messages.
    * The service handles this automatically in most cases.
    *
-   * @param agent - The Mastra agent to use for memory operations
+   * @param agentType - The type of Mastra agent to use for memory operations
    * @param appId - The application ID
    * @param messages - Array of messages to save
    * @returns Promise<void>
    */
   static async saveMessagesToMemory(
-    agent: Agent,
+    agentType: AgentType,
     appId: string,
     messages: unknown[]
   ): Promise<void> {
+    const agent = agentType === "erp" ? erpAgent : builderAgent;
     const memory = await agent.getMemory();
     if (memory) {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any

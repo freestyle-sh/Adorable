@@ -9,7 +9,11 @@ import { useEffect } from "react";
 // times.
 const runningChats = new Set<string>();
 export function useChatSafe(
-  options: Parameters<typeof useChat>[0] & { id: string; onFinish?: () => void }
+  options: Parameters<typeof useChat>[0] & {
+    id: string;
+    onFinish?: () => void;
+    api?: string;
+  }
 ) {
   const id = options.id;
   const resume = options?.resume;

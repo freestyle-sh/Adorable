@@ -1,7 +1,7 @@
 "use client";
 
 import Image from "next/image";
-
+import { usePathname } from "next/navigation";
 import { PromptInputBasic } from "./chatinput";
 import { Markdown } from "./ui/markdown";
 import { useState } from "react";
@@ -20,6 +20,9 @@ export default function Chat(props: {
   topBar?: React.ReactNode;
   running: boolean;
 }) {
+  const pathname = usePathname();
+  const isErp = pathname.startsWith("/erp");
+
   const { data: chat } = useQuery({
     queryKey: ["stream", props.appId],
     queryFn: async () => {
@@ -33,6 +36,7 @@ export default function Chat(props: {
     messages: props.initialMessages,
     id: props.appId,
     resume: props.running && chat?.state === "running",
+    api: isErp ? "/api/chat/erp" : undefined,
   });
 
   const [input, setInput] = useState("");

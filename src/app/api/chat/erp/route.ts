@@ -17,7 +17,7 @@ EventEmitter.defaultMaxListeners = 1000;
 import { NextRequest } from "next/server";
 
 export async function POST(req: NextRequest) {
-  console.log("creating new chat stream");
+  console.log("creating new erp chat stream");
   const appId = getAppIdFromHeaders(req);
 
   if (!appId) {
@@ -52,7 +52,7 @@ export async function POST(req: NextRequest) {
   });
 
   const resumableStream = await sendMessageWithStreaming(
-    "builder",
+    "erp",
     appId,
     mcpEphemeralUrl,
     fs,

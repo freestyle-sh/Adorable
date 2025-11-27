@@ -183,12 +183,14 @@ export default function LoginPage() {
             </p>
           </div>
 
-          {/* Demo Credentials */}
-          <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 text-sm">
-            <p className="font-semibold text-blue-900 mb-2">Demo Credentials:</p>
-            <p className="text-blue-800">Email: demo@adorable-erp.com</p>
-            <p className="text-blue-800">Password: DemoPassword123!</p>
-          </div>
+          {/* Demo Credentials (shown only when explicitly enabled) */}
+          {process.env.NEXT_PUBLIC_SHOW_DEMO_CREDENTIALS === 'true' && (
+            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 text-sm">
+              <p className="font-semibold text-blue-900 mb-2">Demo Credentials (Demo environments only):</p>
+              <p className="text-blue-800">Email: demo@adorable-erp.com</p>
+              <p className="text-blue-800">Password: DemoPassword123!</p>
+            </div>
+          )}
 
           {/* Footer */}
           <p className="text-xs text-center text-gray-500">

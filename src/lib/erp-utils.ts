@@ -20,18 +20,18 @@ export async function fetchAPI<T>(
       },
     });
 
-    const data = await response.json();
+    const data = await response.json().catch(() => undefined);
 
     if (!response.ok) {
       return {
         success: false,
-        error: data.error || "API request failed",
+        error: (data as any)?.error || `API request failed with ${response.status}`,
       };
     }
 
     return {
       success: true,
-      data,
+      data: data as T,
     };
   } catch (error) {
     return {
@@ -39,6 +39,22 @@ export async function fetchAPI<T>(
       error: error instanceof Error ? error.message : "Unknown error",
     };
   }
+}
+
+// Money helpers (integer minor units: poisha)
+export function toMinorUnits(value: number | string): number {
+  const num = typeof value === 'string' ? Number(value) : value;
+  if (!Number.isFinite(num)) return 0;
+  return Math.round(num * 100);
+}
+
+export function fromMinorUnits(minor: number): number {
+  if (!Number.isFinite(minor)) return 0;
+  return minor / 100;
+}
+
+export function safeMul(a: number | string, b: number | string): number {
+  return fromMinorUnits(toMinorUnits(a) * toMinorUnits(b) / 100);
 }
 
 export function formatCurrency(amount: number | string): string {

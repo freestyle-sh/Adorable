@@ -1,7 +1,13 @@
 import { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 import { PrismaClient } from '@prisma/client';
+import { z } from 'zod';
 
 const prisma = new PrismaClient();
+
+const AdjustmentSchema = z.object({
+  adjustmentType: z.enum(['INCREASE','TRANSFER_IN','DECREASE','TRANSFER_OUT','RESERVE','UNRESERVE']),
+  amount: z.number().int().positive(),
+});
 
 export async function registerInventoryRoutes(server: FastifyInstance) {
   // GET /inventory
@@ -17,36 +23,49 @@ export async function registerInventoryRoutes(server: FastifyInstance) {
   // PATCH /inventory/{inventoryId}
   server.patch('/inventory/:inventoryId', async (request: FastifyRequest, reply: FastifyReply) => {
     const { inventoryId } = request.params as any;
-    const body = request.body as any;
+    const parsed = AdjustmentSchema.safeParse(request.body);
+    if (!parsed.success) {
+      return reply.status(400).send({ error: parsed.error.flatten() });
+    }
 
-    // TODO: Validate adjustment type, perform Prisma transaction and inventory locks
+    const { adjustmentType, amount } = parsed.data;
+
     const inv = await prisma.inventory.findUnique({ where: { id: inventoryId } });
     if (!inv) return reply.status(404).send({ error: 'Inventory record not found' });
 
     let newQty = Number(inv.quantity);
-    const amt = Number(body.amount || 0);
 
-    switch (body.adjustmentType) {
+    switch (adjustmentType) {
       case 'INCREASE':
       case 'TRANSFER_IN':
-        newQty += amt;
+        newQty += amount;
         break;
       case 'DECREASE':
       case 'TRANSFER_OUT':
-        newQty -= amt;
+        newQty -= amount;
         break;
       case 'RESERVE':
-        // basic reserve implementation
-        newQty = newQty - amt;
+        newQty -= amount;
         break;
       case 'UNRESERVE':
-        newQty = newQty + amt;
+        newQty += amount;
         break;
-      default:
-        return reply.status(400).send({ error: 'Invalid adjustmentType' });
     }
 
-    const updated = await prisma.inventory.update({ where: { id: inventoryId }, data: { quantity: newQty } });
+    if (newQty < 0) {
+      return reply.status(400).send({ error: 'Insufficient quantity: operation would make stock negative' });
+    }
+
+    // Transactional update (simple single-row update)
+    const updated = await prisma.$transaction(async (tx) => {
+      const current = await tx.inventory.findUnique({ where: { id: inventoryId }, select: { quantity: true } });
+      if (!current) throw new Error('Inventory record not found during transaction');
+      const curQty = Number(current.quantity);
+      const newQuantity = curQty + (newQty - Number(inv.quantity));
+      if (newQuantity < 0) throw new Error('Insufficient quantity');
+      return tx.inventory.update({ where: { id: inventoryId }, data: { quantity: newQuantity } });
+    });
+
     return reply.send(updated);
   });
 }

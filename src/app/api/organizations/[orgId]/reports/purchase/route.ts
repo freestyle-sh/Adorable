@@ -5,17 +5,42 @@ import {
   suppliersTable,
   productsTable,
 } from "@/db/schema";
-import { eq } from "drizzle-orm";
+import { and, between, eq, gte, lte } from "drizzle-orm";
 import { NextRequest, NextResponse } from "next/server";
+
+interface Row {
+  poNumber: string;
+  orderDate: Date | string | null;
+  supplierName: string | null;
+  productName: string | null;
+  quantity: string | number | null;
+  unitPrice: string | number | null;
+  lineTotal: string | number | null;
+  totalAmount: string | number | null;
+  status: string | null;
+}
 
 export async function GET(
   req: NextRequest,
   { params }: { params: { orgId: string } }
 ) {
   try {
-    const { startDate, endDate } = req.nextUrl.searchParams;
+    const startDate = req.nextUrl.searchParams.get("startDate");
+    const endDate = req.nextUrl.searchParams.get("endDate");
 
-    let query = db
+    let whereClause = eq(purchaseOrderTable.organizationId, params.orgId);
+    if (startDate && endDate) {
+      whereClause = and(
+        whereClause,
+        between(purchaseOrderTable.orderDate, new Date(startDate), new Date(endDate))
+      );
+    } else if (startDate) {
+      whereClause = and(whereClause, gte(purchaseOrderTable.orderDate, new Date(startDate)));
+    } else if (endDate) {
+      whereClause = and(whereClause, lte(purchaseOrderTable.orderDate, new Date(endDate)));
+    }
+
+    const results = await db
       .select({
         poNumber: purchaseOrderTable.poNumber,
         orderDate: purchaseOrderTable.orderDate,
@@ -28,7 +53,10 @@ export async function GET(
         status: purchaseOrderTable.status,
       })
       .from(purchaseOrderTable)
-      .leftJoin(suppliersTable, eq(purchaseOrderTable.supplierId, suppliersTable.id))
+      .leftJoin(
+        suppliersTable,
+        eq(purchaseOrderTable.supplierId, suppliersTable.id)
+      )
       .leftJoin(
         purchaseOrderItemsTable,
         eq(purchaseOrderTable.id, purchaseOrderItemsTable.poId)
@@ -37,45 +65,48 @@ export async function GET(
         productsTable,
         eq(purchaseOrderItemsTable.productId, productsTable.id)
       )
-      .where(eq(purchaseOrderTable.organizationId, params.orgId));
+      .where(whereClause);
 
-    if (startDate) {
-      query = query.where(eq(purchaseOrderTable.orderDate, new Date(startDate)));
-    }
+    const purchasesByPO: Record<string, {
+      poNumber: string;
+      orderDate: string | null;
+      supplier: string | null;
+      items: Array<{ product: string; quantity: number; unitPrice: number; lineTotal: number }>;
+      totalAmount: number;
+      status: string | null;
+    }> = {};
 
-    const results = await query;
-
-    // Aggregate purchases by PO
-    const purchasesByPO: Record<string, any> = {};
     let totalPurchases = 0;
     let totalCompleted = 0;
     let totalPending = 0;
 
-    results.forEach((row: any) => {
-      if (!purchasesByPO[row.poNumber]) {
-        purchasesByPO[row.poNumber] = {
-          poNumber: row.poNumber,
-          orderDate: row.orderDate,
-          supplier: row.supplierName,
+    (results as Row[]).forEach((row) => {
+      const poNumber = row.poNumber;
+      if (!purchasesByPO[poNumber]) {
+        const total = Number(row.totalAmount ?? 0);
+        const status = row.status ?? "";
+        purchasesByPO[poNumber] = {
+          poNumber,
+          orderDate: row.orderDate ? new Date(row.orderDate).toISOString() : null,
+          supplier: row.supplierName ?? null,
           items: [],
-          totalAmount: parseFloat(row.totalAmount || 0),
-          status: row.status,
+          totalAmount: total,
+          status,
         };
-        totalPurchases += parseFloat(row.totalAmount || 0);
-
-        if (row.status === "completed") {
-          totalCompleted += parseFloat(row.totalAmount || 0);
+        totalPurchases += total;
+        if (status.toLowerCase() === "completed") {
+          totalCompleted += total;
         } else {
-          totalPending += parseFloat(row.totalAmount || 0);
+          totalPending += total;
         }
       }
 
       if (row.productName) {
-        purchasesByPO[row.poNumber].items.push({
+        purchasesByPO[poNumber].items.push({
           product: row.productName,
-          quantity: row.quantity,
-          unitPrice: row.unitPrice,
-          lineTotal: row.lineTotal,
+          quantity: Number(row.quantity ?? 0),
+          unitPrice: Number(row.unitPrice ?? 0),
+          lineTotal: Number(row.lineTotal ?? 0),
         });
       }
     });

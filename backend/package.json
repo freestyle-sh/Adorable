@@ -15,8 +15,8 @@
   "dependencies": {
     "@prisma/client": "^5.0.0",
     "bcrypt": "^5.1.0",
-    "fastify": "^4.0.0",
-    "fastify-jwt": "^5.0.0",
+    "fastify": "^4.29.1",
+    "@fastify/jwt": "^5.0.0",
     "zod": "^3.0.0",
     "ioredis": "^5.0.0",
     "bull": "^4.0.0"

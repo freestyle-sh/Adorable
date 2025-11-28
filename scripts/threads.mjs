@@ -1,14 +1,16 @@
 // scripts/threads.mjs
 // ESM-safe worker threads example with Node-compatible base64 encoding
-// Interactive bi-directional protocol that can process multiple batches.
+// Interactive bi-directional protocol that can process multiple batches, and optional HTTP server mode.
 // Usage:
-//   node scripts/threads.mjs                      -> defaults to one batch: ["some data"], exits
-//   node scripts/threads.mjs "hello world"        -> one-shot batch, exits
-//   node scripts/threads.mjs foo bar baz          -> one-shot batch with multiple items, exits
-//   node scripts/threads.mjs --interactive        -> REPL mode (ping, batch <args...>, quit/exit)
+//   node scripts/threads.mjs                               -> one-shot batch: ["some data"], exits
+//   node scripts/threads.mjs "hello world"                 -> one-shot batch, exits
+//   node scripts/threads.mjs foo bar baz                   -> one-shot batch with multiple items, exits
+//   node scripts/threads.mjs --interactive                 -> REPL mode (ping, batch <args...>, quit/exit)
+//   PORT=3001 node scripts/threads.mjs --server            -> HTTP server mode
 
 import { Worker, isMainThread, workerData, parentPort } from 'node:worker_threads';
 import readline from 'node:readline';
+import express from 'express';
 
 function toBase64(str) {
   return Buffer.from(str, 'utf8').toString('base64');
@@ -17,7 +19,8 @@ function toBase64(str) {
 if (isMainThread) {
   const args = process.argv.slice(2);
   const interactive = args.includes('--interactive');
-  const messages = args.filter((a) => a !== '--interactive');
+  const serverMode = args.includes('--server');
+  const messages = args.filter((a) => a !== '--interactive' && a !== '--server');
 
   // Spawn this same file as a worker via file URL for robust ESM support
   const worker = new Worker(new URL('./threads.mjs', import.meta.url), { workerData: null });
@@ -61,6 +64,8 @@ if (isMainThread) {
 
   worker.on('exit', (code) => {
     if (code !== 0) console.error('Worker stopped with exit code', code);
+    // In server mode, stop the server when worker exits
+    if (serverMode && server) server.close();
   });
 
   async function runOneShotBatch(initialMessages) {
@@ -111,9 +116,58 @@ if (isMainThread) {
     });
   }
 
+  // Simple HTTP server mode (Express)
+  let server = null;
+  async function runServer() {
+    const port = Number(process.env.PORT || 3001);
+    const app = express();
+    app.use(express.json());
+
+    // Basic CORS (optional)
+    app.use((req, res, next) => {
+      res.setHeader('Access-Control-Allow-Origin', '*');
+      res.setHeader('Access-Control-Allow-Methods', 'GET,POST,OPTIONS');
+      res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+      if (req.method === 'OPTIONS') return res.status(204).end();
+      next();
+    });
+
+    app.get('/ping', async (req, res) => {
+      try { await send('ping'); res.json({ status: 'pong' }); }
+      catch (err) { res.status(500).json({ error: err?.message || String(err) }); }
+    });
+
+    app.post('/batch', async (req, res) => {
+      try {
+        const items = Array.isArray(req.body?.items) ? req.body.items.map(String) : [];
+        if (items.length === 0) return res.status(400).json({ error: 'Body must be JSON: { "items": ["..."] }' });
+        const results = await send('batch', items);
+        res.json({ results });
+      } catch (err) {
+        res.status(500).json({ error: err?.message || String(err) });
+      }
+    });
+
+    app.post('/close', async (req, res) => {
+      try {
+        await send('close');
+        res.json({ status: 'closing' });
+        // server will be closed on worker 'exit'
+      } catch (err) {
+        res.status(500).json({ error: err?.message || String(err) });
+      }
+    });
+
+    server = app.listen(port, () => {
+      console.log(`Worker Express server listening on http://localhost:`);
+    });
+  }
+
   // Start mode based on args
   worker.once('online', () => {
-    if (interactive) {
+    if (serverMode) {
+      runServer();
+    } else if (interactive) {
       runInteractive();
     } else {
       runOneShotBatch(messages);

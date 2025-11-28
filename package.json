@@ -6,7 +6,8 @@
     "dev": "next dev --turbopack",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "threads": "node scripts/threads.mjs"
   },
   "dependencies": {
     "@ai-sdk/anthropic": "^2.0.0-beta.8",

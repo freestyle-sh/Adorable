@@ -1,50 +1,29 @@
 version: "3.8"
 services:
-  postgres:
-    image: postgres:15
+  db:
+    image: postgres:14
     environment:
-      POSTGRES_USER: erp
-      POSTGRES_PASSWORD: erp_password
-      POSTGRES_DB: erp_db
+      POSTGRES_DB: odoo
+      POSTGRES_USER: odoo
+      POSTGRES_PASSWORD: odoo
     volumes:
-      - pgdata:/var/lib/postgresql/data
-    ports:
-      - "5432:5432"
+      - odoo-db:/var/lib/postgresql/data
 
-  redis:
-    image: redis:7
-    ports:
-      - "6379:6379"
-
-  backend:
-    build:
-      context: ./backend
-      dockerfile: Dockerfile
-    env_file: ./backend/.env
+  odoo:
+    image: odoo:16
     depends_on:
-      - postgres
-      - redis
-    volumes:
-      - ./backend:/app
-      - /app/node_modules
+      - db
     ports:
-      - "8000:8000"
-    command: ["npm","run","dev"]
-
-  frontend:
-    build:
-      context: ./frontend
-      dockerfile: Dockerfile
-    env_file: ./frontend/.env
-    depends_on:
-      - backend
+      - "8069:8069"
+    environment:
+      - HOST=db
+      - USER=odoo
+      - PASSWORD=odoo
     volumes:
-      - ./frontend:/app
-      - /app/node_modules
-    ports:
-      - "3000:3000"
-    command: ["npm","run","dev"]
+      - ./custom_addons:/mnt/extra-addons
+      - odoo-data:/var/lib/odoo
 
 volumes:
-  pgdata:
-    driver: local
+  odoo-db:
+  odoo-data:
+  custom_addons:

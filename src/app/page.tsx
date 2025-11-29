@@ -1,146 +1,286 @@
 "use client";
 
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { PromptInput, PromptInputActions } from "@/components/ui/prompt-input";
-import { FrameworkSelector } from "@/components/framework-selector";
-import Image from "next/image";
-import LogoSvg from "@/logo.svg";
-import { useState } from "react";
+import { useUser } from "@stackframe/stack";
+import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { ExampleButton } from "@/components/ExampleButton";
-import { UserButton } from "@stackframe/stack";
-import { UserApps } from "@/components/user-apps";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { PromptInputTextareaWithTypingAnimation } from "@/components/prompt-input";
+import { formatCurrency } from "@/lib/erp-utils";
 
-const queryClient = new QueryClient();
-
-export default function Home() {
-  const [prompt, setPrompt] = useState("");
-  const [framework, setFramework] = useState("nextjs");
-  const [isLoading, setIsLoading] = useState(false);
-  const router = useRouter();
-
-  const handleSubmit = async () => {
-    setIsLoading(true);
-
-    router.push(
-      `/app/new?message=${encodeURIComponent(prompt)}&template=${framework}`
-    );
-  };
-
-  return (
-    <QueryClientProvider client={queryClient}>
-      <main className="min-h-screen p-4 relative">
-        <div className="flex w-full justify-between items-center">
-          <h1 className="text-lg font-bold flex-1 sm:w-80">
-            <a href="https://www.freestyle.sh">freestyle.sh</a>
-          </h1>
-          <Image
-            className="dark:invert mx-2"
-            src={LogoSvg}
-            alt="Adorable Logo"
-            width={36}
-            height={36}
-          />
-          <div className="flex items-center gap-2 flex-1 sm:w-80 justify-end">
-            <UserButton />
-          </div>
-        </div>
-
-        <div>
-          <div className="w-full max-w-lg px-4 sm:px-0 mx-auto flex flex-col items-center mt-16 sm:mt-24 md:mt-32 col-start-1 col-end-1 row-start-1 row-end-1 z-10">
-            <p className="text-neutral-600 text-center mb-6 text-3xl sm:text-4xl md:text-5xl font-bold">
-              Let AI Cook
-            </p>
-
-            <div className="w-full relative my-5">
-              <div className="relative w-full max-w-full overflow-hidden">
-                <div className="w-full bg-accent rounded-md relative z-10 border transition-colors">
-                  <PromptInput
-                    leftSlot={
-                      <FrameworkSelector
-                        value={framework}
-                        onChange={setFramework}
-                      />
-                    }
-                    isLoading={isLoading}
-                    value={prompt}
-                    onValueChange={setPrompt}
-                    onSubmit={handleSubmit}
-                    className="relative z-10 border-none bg-transparent shadow-none focus-within:border-gray-400 focus-within:ring-1 focus-within:ring-gray-200 transition-all duration-200 ease-in-out "
-                  >
-                    <PromptInputTextareaWithTypingAnimation />
-                    <PromptInputActions>
-                      <Button
-                        variant={"ghost"}
-                        size="sm"
-                        onClick={handleSubmit}
-                        disabled={isLoading || !prompt.trim()}
-                        className="h-7 text-xs"
-                      >
-                        <span className="hidden sm:inline">
-                          Start Creating ⏎
-                        </span>
-                        <span className="sm:hidden">Create ⏎</span>
-                      </Button>
-                    </PromptInputActions>
-                  </PromptInput>
-                </div>
-              </div>
-            </div>
-            <Examples setPrompt={setPrompt} />
-            <div className="mt-8 mb-16">
-              <a
-                href="https://freestyle.sh"
-                className="border rounded-md px-4 py-2 mt-4 text-sm font-semibold transition-colors duration-200 ease-in-out cursor-pointer w-full max-w-72 text-center block"
-              >
-                <span className="block font-bold">
-                  By <span className="underline">freestyle.sh</span>
-                </span>
-                <span className="text-xs">
-                  JavaScript infrastructure for AI.
-                </span>
-              </a>
-            </div>
-          </div>
-        </div>
-        <div className="border-t py-8 mx-0 sm:-mx-4">
-          <UserApps />
-        </div>
-      </main>
-    </QueryClientProvider>
-  );
+interface DashboardMetrics {
+  totalSales: number;
+  totalPurchase: number;
+  totalStock: number;
+  pendingOrders: number;
 }
 
-function Examples({ setPrompt }: { setPrompt: (text: string) => void }) {
+export default function Home() {
+  const router = useRouter();
+  const user = useUser();
+  const [metrics, setMetrics] = useState<DashboardMetrics>({
+    totalSales: 0,
+    totalPurchase: 0,
+    totalStock: 0,
+    pendingOrders: 0,
+  });
+  const [loading, setLoading] = useState(true);
+  const [language, setLanguage] = useState<"en" | "bn">("en");
+
+  // Redirect if not authenticated
+  useEffect(() => {
+    if (user === null) {
+      router.push("/login");
+    }
+  }, [user, router]);
+
+  useEffect(() => {
+    // In a real application, fetch metrics from API
+    // For now, using demo data
+    setMetrics({
+      totalSales: 450000,
+      totalPurchase: 280000,
+      totalStock: 150000,
+      pendingOrders: 12,
+    });
+    setLoading(false);
+  }, []);
+
+  if (loading) {
+    return <div className="p-8">Loading...</div>;
+  }
+
+  const moduleList = [
+    {
+      title: language === "en" ? "Inventory" : "ইনভেন্টরি",
+      icon: "📦",
+      href: "/erp/inventory",
+      description:
+        language === "en"
+          ? "Manage stock and cylinders"
+          : "স্টক এবং সিলিন্ডার পরিচালনা করুন",
+    },
+    {
+      title: language === "en" ? "Purchase" : "ক্রয়",
+      icon: "🛒",
+      href: "/erp/purchase",
+      description:
+        language === "en" ? "Purchase orders & GRN" : "ক্রয় অর্ডার এবং GRN",
+    },
+    {
+      title: language === "en" ? "Sales" : "বিক্রয়",
+      icon: "💰",
+      href: "/erp/sales",
+      description:
+        language === "en"
+          ? "Sales orders & invoices"
+          : "বিক্রয় অর্ডার এবং চালান",
+    },
+    {
+      title: language === "en" ? "Accounting" : "হিসাব",
+      icon: "📊",
+      href: "/erp/accounting",
+      description:
+        language === "en"
+          ? "Ledger & journal vouchers"
+          : "লেজার এবং জার্নাল ভাউচার",
+    },
+    {
+      title: language === "en" ? "Reports" : "রিপোর্ট",
+      icon: "📈",
+      href: "/erp/reports",
+      description:
+        language === "en"
+          ? "Financial & operational reports"
+          : "আর্থিক এবং অপারেশনাল রিপোর্ট",
+    },
+    {
+      title: language === "en" ? "Masters" : "মাস্টার ডেটা",
+      icon: "⚙️",
+      href: "/erp/masters",
+      description:
+        language === "en"
+          ? "Customers, suppliers, products"
+          : "গ্রাহক, সরবরাহকারী, পণ্য",
+    },
+  ];
+
   return (
-    <div className="mt-2">
-      <div className="flex flex-wrap justify-center gap-2 px-2">
-        <ExampleButton
-          text="Dog Food Marketplace"
-          promptText="Build a dog food marketplace where users can browse and purchase premium dog food."
-          onClick={(text) => {
-            console.log("Example clicked:", text);
-            setPrompt(text);
-          }}
-        />
-        <ExampleButton
-          text="Personal Website"
-          promptText="Create a personal website with portfolio, blog, and contact sections."
-          onClick={(text) => {
-            console.log("Example clicked:", text);
-            setPrompt(text);
-          }}
-        />
-        <ExampleButton
-          text="Burrito B2B SaaS"
-          promptText="Build a B2B SaaS for burrito shops to manage inventory, orders, and delivery logistics."
-          onClick={(text) => {
-            console.log("Example clicked:", text);
-            setPrompt(text);
-          }}
-        />
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-50">
+      {/* Header */}
+      <div className="bg-white border-b border-gray-200">
+        <div className="max-w-7xl mx-auto px-4 py-6 flex justify-between items-center">
+          <div>
+            <h1 className="text-3xl font-bold text-gray-900">
+              {language === "en" ? "ERP Dashboard" : "ERP ড্যাশবোর্ড"}
+            </h1>
+            <p className="text-gray-600 mt-1">
+              {language === "en"
+                ? "Business Automation Platform for Bangladesh"
+                : "বাংলাদেশের জন্য ব্যবসায়িক স্বয়ংক্রিয়তা প্ল্যাটফর্ম"}
+            </p>
+          </div>
+          <Button
+            variant="outline"
+            onClick={() => setLanguage(language === "en" ? "bn" : "en")}
+          >
+            {language === "en" ? "Bangla" : "English"}
+          </Button>
+        </div>
+      </div>
+
+      {/* Main Content */}
+      <div className="max-w-7xl mx-auto px-4 py-12">
+        {/* Metrics */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-12">
+          <Card className="p-6 bg-white">
+            <div className="flex items-start justify-between">
+              <div>
+                <p className="text-sm font-medium text-gray-600">
+                  {language === "en" ? "Total Sales" : "মোট বিক্রয়"}
+                </p>
+                <p className="text-2xl font-bold text-gray-900 mt-2">
+                  {formatCurrency(metrics.totalSales)}
+                </p>
+              </div>
+              <div className="text-3xl">💰</div>
+            </div>
+          </Card>
+
+          <Card className="p-6 bg-white">
+            <div className="flex items-start justify-between">
+              <div>
+                <p className="text-sm font-medium text-gray-600">
+                  {language === "en" ? "Total Purchase" : "মোট ক্রয়"}
+                </p>
+                <p className="text-2xl font-bold text-gray-900 mt-2">
+                  {formatCurrency(metrics.totalPurchase)}
+                </p>
+              </div>
+              <div className="text-3xl">🛒</div>
+            </div>
+          </Card>
+
+          <Card className="p-6 bg-white">
+            <div className="flex items-start justify-between">
+              <div>
+                <p className="text-sm font-medium text-gray-600">
+                  {language === "en" ? "Stock Value" : "স্টক মূল্য"}
+                </p>
+                <p className="text-2xl font-bold text-gray-900 mt-2">
+                  {formatCurrency(metrics.totalStock)}
+                </p>
+              </div>
+              <div className="text-3xl">📦</div>
+            </div>
+          </Card>
+
+          <Card className="p-6 bg-white">
+            <div className="flex items-start justify-between">
+              <div>
+                <p className="text-sm font-medium text-gray-600">
+                  {language === "en" ? "Pending Orders" : "অপেক্ষমাণ অর্ডার"}
+                </p>
+                <p className="text-2xl font-bold text-gray-900 mt-2">
+                  {metrics.pendingOrders}
+                </p>
+              </div>
+              <div className="text-3xl">⏳</div>
+            </div>
+          </Card>
+        </div>
+
+        {/* Modules Grid */}
+        <div className="mb-8">
+          <h2 className="text-2xl font-bold text-gray-900 mb-6">
+            {language === "en" ? "Modules" : "মডিউল"}
+          </h2>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {moduleList.map((module) => (
+              <Card
+                key={module.href}
+                className="p-6 bg-white hover:shadow-lg transition-shadow cursor-pointer"
+                onClick={() => router.push(module.href)}
+              >
+                <div className="flex items-start justify-between mb-4">
+                  <div className="text-4xl">{module.icon}</div>
+                </div>
+                <h3 className="text-lg font-semibold text-gray-900">
+                  {module.title}
+                </h3>
+                <p className="text-sm text-gray-600 mt-2">{module.description}</p>
+                <Button
+                  variant="ghost"
+                  className="mt-4 w-full justify-start"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    router.push(module.href);
+                  }}
+                >
+                  {language === "en" ? "Access →" : "অ্যাক্সেস করুন →"}
+                </Button>
+              </Card>
+            ))}
+          </div>
+        </div>
+
+        {/* Feature Highlights */}
+        <Card className="p-8 bg-gradient-to-r from-blue-500 to-indigo-600 text-white">
+          <h3 className="text-2xl font-bold mb-4">
+            {language === "en"
+              ? "Key Features"
+              : "মূল বৈশিষ্ট্য"}
+          </h3>
+          <ul className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <li className="flex items-center">
+              <span className="mr-3">✓</span>
+              <span>
+                {language === "en"
+                  ? "Multi-branch management"
+                  : "বহু-শাখা পরিচালনা"}
+              </span>
+            </li>
+            <li className="flex items-center">
+              <span className="mr-3">✓</span>
+              <span>
+                {language === "en"
+                  ? "Cylinder lifecycle tracking"
+                  : "সিলিন্ডার জীবনচক্র ট্র্যাকিং"}
+              </span>
+            </li>
+            <li className="flex items-center">
+              <span className="mr-3">✓</span>
+              <span>
+                {language === "en"
+                  ? "Real-time accounting"
+                  : "রিয়েল-টাইম হিসাব"}
+              </span>
+            </li>
+            <li className="flex items-center">
+              <span className="mr-3">✓</span>
+              <span>
+                {language === "en"
+                  ? "Bangladesh compliance"
+                  : "বাংলাদেশ সম্মতি"}
+              </span>
+            </li>
+            <li className="flex items-center">
+              <span className="mr-3">✓</span>
+              <span>
+                {language === "en"
+                  ? "Comprehensive reporting"
+                  : "বিস্তৃত রিপোর্টিং"}
+              </span>
+            </li>
+            <li className="flex items-center">
+              <span className="mr-3">✓</span>
+              <span>
+                {language === "en"
+                  ? "Role-based access control"
+                  : "ভূমিকা-ভিত্তিক অ্যাক্সেস নিয়ন্ত্রণ"}
+              </span>
+            </li>
+          </ul>
+        </Card>
       </div>
     </div>
   );

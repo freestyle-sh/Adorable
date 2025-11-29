@@ -2,7 +2,7 @@ import { UIMessage } from "ai";
 import { after } from "next/server";
 import { createResumableStreamContext } from "resumable-stream";
 import { redis, redisPublisher } from "./redis";
-import { AIService } from "./ai-service";
+import { AIService, AgentType } from "./ai-service";
 import { Agent } from "@mastra/core/agent";
 import { FreestyleDevServerFilesystem } from "freestyle-sandboxes";
 
@@ -221,7 +221,7 @@ export async function handleStreamLifecycle(
  * This is the main interface that developers should use
  */
 export async function sendMessageWithStreaming(
-  agent: Agent,
+  agentType: AgentType,
   appId: string,
   mcpUrl: string,
   fs: FreestyleDevServerFilesystem,
@@ -239,7 +239,7 @@ export async function sendMessageWithStreaming(
 
   // Use the AI service to handle the AI interaction
   const aiResponse = await AIService.sendMessage(
-    agent,
+    agentType,
     appId,
     mcpUrl,
     fs,
@@ -263,7 +263,7 @@ export async function sendMessageWithStreaming(
           controller.abort("Aborted stream after step finish");
           const messages = await AIService.getUnsavedMessages(appId);
           console.log(messages);
-          await AIService.saveMessagesToMemory(agent, appId, messages);
+          await AIService.saveMessagesToMemory(agentType, appId, messages);
         }
       },
       onError: async (error: { error: unknown }) => {

@@ -1,0 +1,9 @@
+{
+	"servers": {
+		"BLACKBOX AI": {
+			"url": "https://docs.blackbox.ai/mcp",
+			"type": "http"
+		}
+	},
+	"inputs": []
+}

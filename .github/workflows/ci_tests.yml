@@ -1,0 +1,106 @@
+name: CI - Tests & Coverage
+
+on:
+  push:
+    branches:
+      - main
+      - 'erp/*'
+  pull_request:
+    branches:
+      - main
+
+env:
+  SRS_FILE_PATH: "/mnt/data/SRS_FOR_ERP (MTE).pdf"
+
+jobs:
+  backend-tests:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_USER: erp
+          POSTGRES_PASSWORD: erp_password
+          POSTGRES_DB: erp_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready --health-interval 10s --health-timeout 5s --health-retries 5
+      redis:
+        image: redis:7
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping" --health-interval 10s --health-timeout 5s --health-retries 5
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Use Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: "npm"
+
+      - name: Install backend deps
+        working-directory: backend
+        run: |
+          npm ci
+
+      - name: Generate Prisma client
+        working-directory: backend
+        env:
+          DATABASE_URL: postgresql://erp:erp_password@localhost:5432/erp_test
+        run: |
+          npx prisma generate
+
+      - name: Wait for Postgres
+        run: |
+          for i in `seq 1 20`; do
+            pg_isready -h localhost -p 5432 && break || sleep 1
+          done
+
+      - name: Apply migrations
+        working-directory: backend
+        env:
+          DATABASE_URL: postgresql://erp:erp_password@localhost:5432/erp_test
+        run: |
+          npx prisma migrate deploy || true
+
+      - name: Seed test DB
+        working-directory: backend
+        env:
+          DATABASE_URL: postgresql://erp:erp_password@localhost:5432/erp_test
+          REDIS_URL: "redis://localhost:6379"
+          SRS_FILE_PATH: ${{ env.SRS_FILE_PATH }}
+        run: |
+          node prisma/seed_test.js
+
+      - name: Run tests with coverage
+        working-directory: backend
+        env:
+          DATABASE_URL: postgresql://erp:erp_password@localhost:5432/erp_test
+          REDIS_URL: "redis://localhost:6379"
+        run: |
+          npm run test:ci
+
+      - name: Upload coverage artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: backend-coverage
+          path: backend/coverage
+
+      - name: Show coverage summary (lcov)
+        if: always()
+        working-directory: backend
+        run: |
+          if [ -f coverage/lcov.info ]; then
+            echo "---- LCOV INFO ----"
+            head -n 200 coverage/lcov.info || true
+          fi
+            if [ -f coverage/lcov-report/index.html ]; then
+                echo "---- LCOV REPORT ----"
+                echo "Open coverage/lcov-report/index.html to view the full report."
+            fi 

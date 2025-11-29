@@ -2,7 +2,6 @@ import { getApp } from "@/actions/get-app";
 import { freestyle } from "@/lib/freestyle";
 import { getAppIdFromHeaders } from "@/lib/utils";
 import { UIMessage } from "ai";
-import { builderAgent } from "@/mastra/agents/builder";
 
 // "fix" mastra mcp bug
 import { EventEmitter } from "events";
@@ -53,7 +52,7 @@ export async function POST(req: NextRequest) {
   });
 
   const resumableStream = await sendMessageWithStreaming(
-    builderAgent,
+    "builder",
     appId,
     mcpEphemeralUrl,
     fs,

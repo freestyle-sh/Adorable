@@ -1,0 +1,265 @@
+generator client {
+  provider = "prisma-client-js"
+  previewFeatures = ["referentialIntegrity"]
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Branch {
+  id          String    @id @default(uuid())
+  code        String    @unique
+  name        String
+  address     String?
+  warehouses  Warehouse[]
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+}
+
+model Warehouse {
+  id        String  @id @default(uuid())
+  branch    Branch  @relation(fields: [branchId], references: [id])
+  branchId  String
+  name      String
+  code      String  @unique
+  items     Inventory[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model ItemType {
+  id        String @id @default(uuid())
+  code      String @unique
+  name      String
+  description String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  items     Item[]
+}
+
+model Item {
+  id           String    @id @default(uuid())
+  sku          String    @unique
+  name         String
+  description  String?
+  itemType     ItemType  @relation(fields: [itemTypeId], references: [id])
+  itemTypeId   String
+  unitPrice    Decimal   @db.Decimal(18,2)
+  unitCost     Decimal   @db.Decimal(18,2)
+  barcode      String?   @unique
+  active       Boolean   @default(true)
+  inventories  Inventory[]
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+}
+
+model Inventory {
+  id          String   @id @default(uuid())
+  warehouse   Warehouse @relation(fields: [warehouseId], references: [id])
+  warehouseId String
+  item        Item     @relation(fields: [itemId], references: [id])
+  itemId      String
+  quantity    Decimal  @db.Decimal(18,3) @default(0)
+  reserved    Decimal  @db.Decimal(18,3) @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@unique([warehouseId, itemId])
+}
+
+model Supplier {
+  id        String  @id @default(uuid())
+  code      String  @unique
+  name      String
+  contact   String?
+  address   String?
+  invoices  PurchaseInvoice[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Customer {
+  id           String  @id @default(uuid())
+  code         String  @unique
+  name         String
+  contact      String?
+  address      String?
+  salesOrders  SalesOrder[]
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
+
+model User {
+  id            String @id @default(uuid())
+  email         String @unique
+  name          String?
+  passwordHash  String
+  role          Role   @relation(fields: [roleId], references: [id])
+  roleId        String
+  isActive      Boolean @default(true)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+}
+
+model Role {
+  id          String  @id @default(uuid())
+  name        String  @unique
+  permissions String[] @default([])
+  users       User[]
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model Transit {
+  id             String   @id @default(uuid())
+  transitNo      String   @unique
+  sourceBranchId String?
+  destBranchId   String?
+  status         TransitStatus @default(DRAFT)
+  items          TransitItem[]
+  createdById    String?
+  createdBy      User?    @relation(fields: [createdById], references: [id])
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+}
+
+enum TransitStatus {
+  DRAFT
+  IN_TRANSIT
+  DELIVERED
+  CANCELLED
+}
+
+model TransitItem {
+  id        String  @id @default(uuid())
+  transit   Transit @relation(fields: [transitId], references: [id])
+  transitId String
+  item      Item    @relation(fields: [itemId], references: [id])
+  itemId    String
+  quantity  Decimal @db.Decimal(18,3)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model WorkOrder {
+  id          String @id @default(uuid())
+  code        String @unique
+  description String?
+  status      String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model GRN {
+  id            String  @id @default(uuid())
+  grnNo         String  @unique
+  supplierId    String
+  supplier      Supplier @relation(fields: [supplierId], references: [id])
+  totalAmount   Decimal @db.Decimal(18,2)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+}
+
+model PurchaseInvoice {
+  id          String  @id @default(uuid())
+  supplier    Supplier @relation(fields: [supplierId], references: [id])
+  supplierId  String
+  invoiceNo   String  @unique
+  totalAmount Decimal @db.Decimal(18,2)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model SalesOrder {
+  id           String  @id @default(uuid())
+  orderNo      String  @unique
+  customerId   String
+  customer     Customer @relation(fields: [customerId], references: [id])
+  status       SalesStatus @default(DRAFT)
+  items        SalesOrderItem[]
+  totalAmount  Decimal @db.Decimal(18,2)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
+
+enum SalesStatus {
+  DRAFT
+  CONFIRMED
+  IN_TRANSIT
+  DELIVERED
+  CANCELLED
+}
+
+model SalesOrderItem {
+  id         String  @id @default(uuid())
+  salesOrder SalesOrder @relation(fields: [salesOrderId], references: [id])
+  salesOrderId String
+  item       Item    @relation(fields: [itemId], references: [id])
+  itemId     String
+  quantity   Decimal @db.Decimal(18,3)
+  unitPrice  Decimal @db.Decimal(18,2)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+}
+
+model ECR { // Empty Cylinder Receipt / Return
+  id          String @id @default(uuid())
+  referenceNo String @unique
+  branchId    String
+  branch      Branch @relation(fields: [branchId], references: [id])
+  items       ECRItem[]
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model ECRItem {
+  id       String @id @default(uuid())
+  ecr      ECR    @relation(fields: [ecrId], references: [id])
+  ecrId    String
+  item     Item   @relation(fields: [itemId], references: [id])
+  itemId   String
+  quantity Decimal @db.Decimal(18,3)
+}
+
+model Coa { // Chart of Accounts
+  id        String  @id @default(uuid())
+  code      String  @unique
+  name      String
+  type      String
+  parentId  String?
+  children  Coa[]   @relation("CoaChildren", fields: [parentId], references: [id])
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Voucher {
+  id          String  @id @default(uuid())
+  voucherNo   String  @unique
+  date        DateTime @default(now())
+  lines       VoucherLine[]
+  totalDebit  Decimal @db.Decimal(18,2)
+  totalCredit Decimal @db.Decimal(18,2)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model VoucherLine {
+  id        String  @id @default(uuid())
+  voucher   Voucher @relation(fields: [voucherId], references: [id])
+  voucherId String
+  coaId     String
+  amount    Decimal @db.Decimal(18,2)
+  type      String
+}
+
+model AuditLog {
+  id        String   @id @default(uuid())
+  userId    String?
+  action    String
+  entity    String
+  entityId  String?
+  data      Json?
+  createdAt DateTime @default(now())
+}

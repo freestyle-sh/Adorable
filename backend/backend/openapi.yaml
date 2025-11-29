@@ -1,0 +1,926 @@
+openapi: 3.0.3
+info:
+  title: Adorable ERP - OpenAPI Starter
+  version: 0.1.0
+  description: |
+    Starter OpenAPI spec for the Adorable ERP system (Inventory, Purchase, Sales, Accounting,
+    Multi-branch, RBC, Reporting, ECR). Use as a scaffold for controllers, client SDKs,
+    and automated tests. This spec is derived from the SRS at the local path below.
+  x-srs-file: "/mnt/data/SRS_FOR_ERP (MTE).pdf"
+servers:
+  - url: http://localhost:8000
+    description: Local development server
+tags:
+  - name: auth
+    description: Authentication and user management
+  - name: items
+    description: Item master and item types
+  - name: inventory
+    description: Inventory and stock operations
+  - name: transits
+    description: Transit / transfer lifecycle (DRAFT → IN_TRANSIT → DELIVERED)
+  - name: sales
+    description: Sales orders and delivery
+  - name: purchases
+    description: Purchase flows, GRNs, invoices
+  - name: ecr
+    description: Empty Cylinder Receipt / Return flows
+  - name: accounting
+    description: Vouchers, COA, journal entries, trial balance
+  - name: reports
+    description: Aggregated reports (inventory valuation, financials)
+
+paths:
+  /auth/login:
+    post:
+      tags: [auth]
+      summary: Login user and return JWT
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AuthRequest'
+      responses:
+        '200':
+          description: Login success
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthResponse'
+        '401':
+          description: Invalid credentials
+
+  /auth/register:
+    post:
+      tags: [auth]
+      summary: Register a user (admin-only)
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UserCreate'
+      responses:
+        '201':
+          description: Created user
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+
+  /items:
+    get:
+      tags: [items]
+      summary: List items (server-side pagination supported)
+      parameters:
+        - in: query
+          name: page
+          schema:
+            type: integer
+            default: 1
+        - in: query
+          name: perPage
+          schema:
+            type: integer
+            default: 25
+        - in: query
+          name: q
+          schema:
+            type: string
+            description: Search by sku or name
+      responses:
+        '200':
+          description: Items list
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  total:
+                    type: integer
+                  items:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Item'
+    post:
+      tags: [items]
+      summary: Create item
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ItemCreate'
+      responses:
+        '201':
+          description: Created item
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Item'
+
+  /items/{itemId}:
+    parameters:
+      - in: path
+        name: itemId
+        required: true
+        schema:
+          type: string
+    get:
+      tags: [items]
+      summary: Get item by id
+      responses:
+        '200':
+          description: Item
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Item'
+    put:
+      tags: [items]
+      summary: Update item
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ItemUpdate'
+      responses:
+        '200':
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Item'
+    delete:
+      tags: [items]
+      summary: Soft-delete item
+      security:
+        - bearerAuth: []
+      responses:
+        '204':
+          description: Deleted
+
+  /inventory:
+    get:
+      tags: [inventory]
+      summary: List inventory records
+      parameters:
+        - in: query
+          name: warehouseId
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Inventory list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Inventory'
+
+  /inventory/{inventoryId}:
+    patch:
+      tags: [inventory]
+      summary: Adjust inventory (stock in/out/reserve)
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: inventoryId
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/InventoryAdjustment'
+      responses:
+        '200':
+          description: Adjusted inventory
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Inventory'
+
+  /transits:
+    post:
+      tags: [transits]
+      summary: Create a transit (transfer)
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TransitCreate'
+      responses:
+        '201':
+          description: Transit created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Transit'
+    get:
+      tags: [transits]
+      summary: List transits
+      responses:
+        '200':
+          description: Transit list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Transit'
+
+  /transits/{transitId}/status:
+    post:
+      tags: [transits]
+      summary: Update transit status (state machine)
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: transitId
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                status:
+                  type: string
+                  enum: [DRAFT, IN_TRANSIT, DELIVERED, CANCELLED]
+                remarks:
+                  type: string
+      responses:
+        '200':
+          description: Transit updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Transit'
+
+  /sales/orders:
+    post:
+      tags: [sales]
+      summary: Create sales order
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SalesOrderCreate'
+      responses:
+        '201':
+          description: Sales order created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SalesOrder'
+    get:
+      tags: [sales]
+      summary: List sales orders
+      responses:
+        '200':
+          description: Sales order list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/SalesOrder'
+
+  /sales/orders/{orderId}/status:
+    post:
+      tags: [sales]
+      summary: Update sales order status
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: orderId
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                status:
+                  type: string
+                  enum: [DRAFT, CONFIRMED, IN_TRANSIT, DELIVERED, CANCELLED]
+                remarks:
+                  type: string
+      responses:
+        '200':
+          description: Updated sales order
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SalesOrder'
+
+  /purchases/grn:
+    post:
+      tags: [purchases]
+      summary: Create GRN (Goods Received Note)
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GRNCreate'
+      responses:
+        '201':
+          description: GRN created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GRN'
+
+  /ecr:
+    post:
+      tags: [ecr]
+      summary: Create Empty Cylinder Receipt / Return (ECR)
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ECRCreate'
+      responses:
+        '201':
+          description: ECR created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ECR'
+
+  /accounting/vouchers:
+    post:
+      tags: [accounting]
+      summary: Post an accounting voucher (journal)
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/VoucherCreate'
+      responses:
+        '201':
+          description: Voucher posted
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Voucher'
+    get:
+      tags: [accounting]
+      summary: List vouchers
+      responses:
+        '200':
+          description: Voucher list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Voucher'
+
+  /reports/trial-balance:
+    get:
+      tags: [reports]
+      summary: Get trial balance for a period
+      parameters:
+        - in: query
+          name: from
+          schema:
+            type: string
+            format: date
+        - in: query
+          name: to
+          schema:
+            type: string
+            format: date
+      responses:
+        '200':
+          description: Trial balance
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  period:
+                    type: object
+                    properties:
+                      from:
+                        type: string
+                        format: date
+                      to:
+                        type: string
+                        format: date
+                  balances:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        coaCode:
+                          type: string
+                        debit:
+                          type: number
+                        credit:
+                          type: number
+
+  /reports/inventory-valuation:
+    get:
+      tags: [reports]
+      summary: Inventory valuation (warehouse or company-wide)
+      parameters:
+        - in: query
+          name: warehouseId
+          schema:
+            type: string
+        - in: query
+          name: method
+          schema:
+            type: string
+            enum: [WEIGHTED_AVERAGE, FIFO]
+            default: WEIGHTED_AVERAGE
+      responses:
+        '200':
+          description: Inventory valuation
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  totalValue:
+                    type: number
+                  breakdown:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        itemSku:
+                          type: string
+                        quantity:
+                          type: number
+                        value:
+                          type: number
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  schemas:
+    AuthRequest:
+      type: object
+      required: [email, password]
+      properties:
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+          format: password
+    AuthResponse:
+      type: object
+      properties:
+        token:
+          type: string
+        expiresIn:
+          type: integer
+          description: seconds
+
+    User:
+      type: object
+      properties:
+        id:
+          type: string
+        email:
+          type: string
+          format: email
+        name:
+          type: string
+        roleId:
+          type: string
+        isActive:
+          type: boolean
+
+    UserCreate:
+      type: object
+      required: [email, password, roleId]
+      properties:
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+        name:
+          type: string
+        roleId:
+          type: string
+
+    Role:
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        permissions:
+          type: array
+          items:
+            type: string
+
+    ItemType:
+      type: object
+      properties:
+        id:
+          type: string
+        code:
+          type: string
+        name:
+          type: string
+        description:
+          type: string
+
+    Item:
+      type: object
+      properties:
+        id:
+          type: string
+        sku:
+          type: string
+        name:
+          type: string
+        description:
+          type: string
+        itemTypeId:
+          type: string
+        unitPrice:
+          type: number
+          format: double
+        unitCost:
+          type: number
+          format: double
+        barcode:
+          type: string
+        active:
+          type: boolean
+        createdAt:
+          type: string
+          format: date-time
+
+    ItemCreate:
+      type: object
+      required: [sku, name, itemTypeId]
+      properties:
+        sku:
+          type: string
+        name:
+          type: string
+        itemTypeId:
+          type: string
+        unitPrice:
+          type: number
+        unitCost:
+          type: number
+        barcode:
+          type: string
+
+    ItemUpdate:
+      type: object
+      properties:
+        name:
+          type: string
+        unitPrice:
+          type: number
+        unitCost:
+          type: number
+        active:
+          type: boolean
+
+    Inventory:
+      type: object
+      properties:
+        id:
+          type: string
+        warehouseId:
+          type: string
+        itemId:
+          type: string
+        quantity:
+          type: number
+        reserved:
+          type: number
+
+    InventoryAdjustment:
+      type: object
+      required: [adjustmentType, amount]
+      properties:
+        adjustmentType:
+          type: string
+          enum: [INCREASE, DECREASE, RESERVE, UNRESERVE, TRANSFER_OUT, TRANSFER_IN]
+        amount:
+          type: number
+        reason:
+          type: string
+        referenceId:
+          type: string
+          description: e.g. transitId or salesOrderId
+
+    TransitCreate:
+      type: object
+      required: [transitNo, sourceBranchId, destBranchId, items]
+      properties:
+        transitNo:
+          type: string
+        sourceBranchId:
+          type: string
+        destBranchId:
+          type: string
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/TransitItemCreate'
+
+    Transit:
+      type: object
+      properties:
+        id:
+          type: string
+        transitNo:
+          type: string
+        sourceBranchId:
+          type: string
+        destBranchId:
+          type: string
+        status:
+          type: string
+          enum: [DRAFT, IN_TRANSIT, DELIVERED, CANCELLED]
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/TransitItem'
+        createdAt:
+          type: string
+          format: date-time
+
+    TransitItemCreate:
+      type: object
+      required: [itemId, quantity]
+      properties:
+        itemId:
+          type: string
+        quantity:
+          type: number
+
+    TransitItem:
+      type: object
+      properties:
+        id:
+          type: string
+        itemId:
+          type: string
+        quantity:
+          type: number
+
+    SalesOrderCreate:
+      type: object
+      required: [orderNo, customerId, items]
+      properties:
+        orderNo:
+          type: string
+        customerId:
+          type: string
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/SalesOrderItemCreate'
+
+    SalesOrder:
+      type: object
+      properties:
+        id:
+          type: string
+        orderNo:
+          type: string
+        customerId:
+          type: string
+        status:
+          type: string
+          enum: [DRAFT, CONFIRMED, IN_TRANSIT, DELIVERED, CANCELLED]
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/SalesOrderItem'
+        totalAmount:
+          type: number
+        createdAt:
+          type: string
+          format: date-time
+
+    SalesOrderItemCreate:
+      type: object
+      required: [itemId, quantity, unitPrice]
+      properties:
+        itemId:
+          type: string
+        quantity:
+          type: number
+        unitPrice:
+          type: number
+
+    SalesOrderItem:
+      type: object
+      properties:
+        id:
+          type: string
+        itemId:
+          type: string
+        quantity:
+          type: number
+        unitPrice:
+          type: number
+
+    GRNCreate:
+      type: object
+      required: [grnNo, supplierId, totalAmount, items]
+      properties:
+        grnNo:
+          type: string
+        supplierId:
+          type: string
+        totalAmount:
+          type: number
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/GRNItem'
+
+    GRN:
+      type: object
+      properties:
+        id:
+          type: string
+        grnNo:
+          type: string
+        supplierId:
+          type: string
+        totalAmount:
+          type: number
+        createdAt:
+          type: string
+          format: date-time
+
+    GRNItem:
+      type: object
+      properties:
+        itemId:
+          type: string
+        quantity:
+          type: number
+        unitCost:
+          type: number
+
+    ECRCreate:
+      type: object
+      required: [referenceNo, branchId, items]
+      properties:
+        referenceNo:
+          type: string
+        branchId:
+          type: string
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/ECRItem'
+
+    ECR:
+      type: object
+      properties:
+        id:
+          type: string
+        referenceNo:
+          type: string
+        branchId:
+          type: string
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/ECRItem'
+        createdAt:
+          type: string
+          format: date-time
+
+    ECRItem:
+      type: object
+      properties:
+        itemId:
+          type: string
+        quantity:
+          type: number
+
+    Coa:
+      type: object
+      properties:
+        id:
+          type: string
+        code:
+          type: string
+        name:
+          type: string
+        type:
+          type: string
+
+    VoucherCreate:
+      type: object
+      required: [voucherNo, date, lines]
+      properties:
+        voucherNo:
+          type: string
+        date:
+          type: string
+          format: date
+        lines:
+          type: array
+          items:
+            $ref: '#/components/schemas/VoucherLineCreate'
+
+    Voucher:
+      type: object
+      properties:
+        id:
+          type: string
+        voucherNo:
+          type: string
+        date:
+          type: string
+          format: date
+        totalDebit:
+          type: number
+        totalCredit:
+          type: number
+        lines:
+          type: array
+          items:
+            $ref: '#/components/schemas/VoucherLine'
+
+    VoucherLineCreate:
+      type: object
+      required: [coaCode, amount, type]
+      properties:
+        coaCode:
+          type: string
+        amount:
+          type: number
+        type:
+          type: string
+          enum: [DEBIT, CREDIT]
+        narration:
+          type: string
+
+    VoucherLine:
+      type: object
+      properties:
+        id:
+          type: string
+        coaCode:
+          type: string
+        amount:
+          type: number
+        type:
+          type: string
+
+security:
+  - bearerAuth: []

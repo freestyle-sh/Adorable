@@ -1,4 +1,14 @@
 {
     "deno.enable": false,
     "editor.defaultFormatter": "esbenp.prettier-vscode",
+    "python.testing.unittestArgs": [
+        "-v",
+        "-s",
+        "./node_modules",
+        "-p",
+        "*test.py"
+    ],
+    "python.testing.pytestEnabled": false,
+    "python.testing.unittestEnabled": true,
+    "docker.lsp.debugServerPort": 3000,
 }

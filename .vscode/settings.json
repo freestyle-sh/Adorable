@@ -10,4 +10,5 @@
     ],
     "python.testing.pytestEnabled": false,
     "python.testing.unittestEnabled": true,
+    "docker.lsp.debugServerPort": 3000,
 }

@@ -5,7 +5,7 @@ import { PromptInput, PromptInputActions } from "@/components/ui/prompt-input";
 import { FrameworkSelector } from "@/components/framework-selector";
 import Image from "next/image";
 import LogoSvg from "@/logo.svg";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { ExampleButton } from "@/components/ExampleButton";
 import { UserButton } from "@stackframe/stack";
@@ -15,14 +15,50 @@ import { PromptInputTextareaWithTypingAnimation } from "@/components/prompt-inpu
 
 const queryClient = new QueryClient();
 
+const STORAGE_KEYS = {
+  PROMPT: "adorable_draft_prompt",
+  FRAMEWORK: "adorable_draft_framework",
+};
+
 export default function Home() {
   const [prompt, setPrompt] = useState("");
   const [framework, setFramework] = useState("nextjs");
   const [isLoading, setIsLoading] = useState(false);
   const router = useRouter();
 
+  // Load saved values from localStorage on mount
+  useEffect(() => {
+    const savedPrompt = localStorage.getItem(STORAGE_KEYS.PROMPT);
+    const savedFramework = localStorage.getItem(STORAGE_KEYS.FRAMEWORK);
+
+    if (savedPrompt) {
+      setPrompt(savedPrompt);
+    }
+    if (savedFramework) {
+      setFramework(savedFramework);
+    }
+  }, []);
+
+  // Save prompt to localStorage whenever it changes
+  useEffect(() => {
+    if (prompt) {
+      localStorage.setItem(STORAGE_KEYS.PROMPT, prompt);
+    } else {
+      localStorage.removeItem(STORAGE_KEYS.PROMPT);
+    }
+  }, [prompt]);
+
+  // Save framework to localStorage whenever it changes
+  useEffect(() => {
+    localStorage.setItem(STORAGE_KEYS.FRAMEWORK, framework);
+  }, [framework]);
+
   const handleSubmit = async () => {
     setIsLoading(true);
+
+    // Clear saved draft after submission
+    localStorage.removeItem(STORAGE_KEYS.PROMPT);
+    localStorage.removeItem(STORAGE_KEYS.FRAMEWORK);
 
     router.push(
       `/app/new?message=${encodeURIComponent(prompt)}&template=${framework}`

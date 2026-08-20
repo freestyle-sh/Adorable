@@ -5,9 +5,9 @@ import {
   freestyleProjectStore,
   freestyleSandboxProvider,
 } from "@/lib/adapters";
+import type { AccessContext } from "@/lib/application/access-control-service";
 import type {
   ConversationStore,
-  GitIdentityPermissions,
   GitProvider,
   ProjectStore,
   SandboxProvider,
@@ -24,16 +24,8 @@ export type CreateProjectInput = {
   githubRepoName?: string;
 };
 
-export type CreateProjectIdentity = GitIdentityPermissions & {
-  permissions: GitIdentityPermissions["permissions"] & {
-    vms: {
-      grant(input: { vmId: string }): Promise<unknown>;
-    };
-  };
-};
-
 export type CreateProjectContext = {
-  identity: CreateProjectIdentity;
+  access: AccessContext;
 };
 
 export type CreateProjectResult = {
@@ -57,7 +49,7 @@ export class ProjectApplicationService {
     context: CreateProjectContext,
   ): Promise<CreateProjectResult> {
     const { requestedName, requestedConversationTitle, githubRepoName } = input;
-    const { identity } = context;
+    const { access } = context;
 
     let sourceRepoId: string;
     if (githubRepoName) {
@@ -86,22 +78,13 @@ export class ProjectApplicationService {
     });
     const wrapperRepoId = wrapperCreated.repoId;
 
-    await this.deps.gitProvider.grantWriteAccess({
-      identity,
-      repoId: sourceRepoId,
-    });
+    await access.grantGitRepoWrite(sourceRepoId);
 
-    await this.deps.gitProvider.grantWriteAccess({
-      identity,
-      repoId: wrapperRepoId,
-    });
+    await access.grantGitRepoWrite(wrapperRepoId);
 
     const vm = await this.deps.sandboxProvider.createForRepo(sourceRepoId);
 
-    // TODO: Move VM permission grants behind an identity/permission port.
-    await identity.permissions.vms.grant({
-      vmId: vm.vmId,
-    });
+    await access.grantVmAccess(vm.vmId);
 
     const initialMetadata: RepoMetadata = {
       version: 2,

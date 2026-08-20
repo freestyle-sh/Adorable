@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { freestyle } from "freestyle-sandboxes";
+import { createFreestyleAccessContext } from "@/lib/application/access-control-service";
 import { projectApplicationService } from "@/lib/application/project-application-service";
 import { getOrCreateIdentitySession } from "@/lib/identity-session";
 import {
@@ -106,7 +107,7 @@ export async function GET() {
 }
 
 export async function POST(req: Request) {
-  const { identity } = await getOrCreateIdentitySession();
+  const { identityId, identity } = await getOrCreateIdentitySession();
 
   let requestedName: string | undefined;
   let requestedConversationTitle: string | undefined;
@@ -137,7 +138,12 @@ export async function POST(req: Request) {
       requestedConversationTitle,
       githubRepoName,
     },
-    { identity },
+    {
+      access: createFreestyleAccessContext({
+        identityId,
+        identity,
+      }),
+    },
   );
 
   return NextResponse.json({

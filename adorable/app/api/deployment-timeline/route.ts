@@ -1,4 +1,4 @@
-import { getDeploymentTimelineFromCommits } from "@/lib/deployment-status";
+import { freestyleDeploymentProvider } from "@/lib/adapters";
 import { createFreestyleAccessContext } from "@/lib/application/access-control-service";
 import { getOrCreateIdentitySession } from "@/lib/identity-session";
 import { resolveSourceRepoId } from "@/lib/repo-storage";
@@ -28,7 +28,7 @@ export async function GET(req: Request) {
     }
 
     const sourceRepoId = await resolveSourceRepoId(repoId);
-    const timeline = await getDeploymentTimelineFromCommits(
+    const timeline = await freestyleDeploymentProvider.getTimelineFromCommits(
       sourceRepoId,
       Number.isFinite(limit) ? Math.min(Math.max(limit, 1), 30) : 12,
     );

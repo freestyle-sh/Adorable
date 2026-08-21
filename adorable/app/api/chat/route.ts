@@ -2,6 +2,7 @@ import { type UIMessage } from "ai";
 import { cookies } from "next/headers";
 import { freestyle } from "freestyle-sandboxes";
 import { createTools as createVmTools } from "@/lib/create-tools";
+import { createFreestyleAccessContext } from "@/lib/application/access-control-service";
 import { streamLlmResponse } from "@/lib/llm-provider";
 import { adorableVmSpec } from "@/lib/adorable-vm";
 import { getOrCreateIdentitySession } from "@/lib/identity-session";
@@ -34,9 +35,12 @@ export async function POST(req: Request) {
     );
   }
 
-  const { identity } = await getOrCreateIdentitySession();
-  const { repositories } = await identity.permissions.git.list({ limit: 200 });
-  const hasAccess = repositories.some((repo) => repo.id === repoId);
+  const { identityId, identity } = await getOrCreateIdentitySession();
+  const access = createFreestyleAccessContext({
+    identityId,
+    identity,
+  });
+  const hasAccess = await access.hasGitRepoAccess(repoId);
 
   if (!hasAccess) {
     return Response.json({ error: "Forbidden" }, { status: 403 });

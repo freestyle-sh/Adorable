@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { freestyle } from "freestyle-sandboxes";
+import { freestyleDeploymentProvider } from "@/lib/adapters";
 import { createFreestyleAccessContext } from "@/lib/application/access-control-service";
 import { getOrCreateIdentitySession } from "@/lib/identity-session";
 import {
@@ -40,9 +40,7 @@ const ownsDeployment = async (
   if (knownDomains.size === 0) return false;
 
   try {
-    const { entries } = await freestyle.serverless.deployments.list({
-      limit: 500,
-    });
+    const entries = await freestyleDeploymentProvider.listDeployments(500);
     const match = (entries as DeploymentEntry[]).find(
       (entry) => entry.deploymentId === deploymentId,
     );
@@ -98,7 +96,7 @@ export async function POST(
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
-  await freestyle.domains.mappings.create({
+  await freestyleDeploymentProvider.createDomainMapping({
     domain: metadata.productionDomain,
     deploymentId,
   });

@@ -81,7 +81,8 @@ const toRepoResponse = async (
 
 export async function GET() {
   const { identityId, identity } = await getOrCreateIdentitySession();
-  const { repositories } = await identity.permissions.git.list({ limit: 200 });
+  const access = createFreestyleAccessContext({ identityId, identity });
+  const repositories = await access.listGitRepositories(200);
   const wrapperRepositories = repositories.filter((repo) =>
     (repo.name ?? "").startsWith(ADORABLE_WRAPPER_REPO_PREFIX),
   );

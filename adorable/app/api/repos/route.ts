@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { freestyle } from "freestyle-sandboxes";
+import { freestyleDeploymentProvider } from "@/lib/adapters";
 import { createFreestyleAccessContext } from "@/lib/application/access-control-service";
 import { projectApplicationService } from "@/lib/application/project-application-service";
 import { getOrCreateIdentitySession } from "@/lib/identity-session";
@@ -89,10 +89,7 @@ export async function GET() {
 
   let deploymentEntries: DeploymentEntry[] = [];
   try {
-    const { entries } = await freestyle.serverless.deployments.list({
-      limit: 500,
-    });
-    deploymentEntries = entries as DeploymentEntry[];
+    deploymentEntries = await freestyleDeploymentProvider.listDeployments(500);
   } catch {
     deploymentEntries = [];
   }

@@ -1,4 +1,4 @@
-import { getDeploymentStatusForLatestCommit } from "@/lib/deployment-status";
+import { freestyleDeploymentProvider } from "@/lib/adapters";
 import { createFreestyleAccessContext } from "@/lib/application/access-control-service";
 import { getOrCreateIdentitySession } from "@/lib/identity-session";
 import { resolveSourceRepoId } from "@/lib/repo-storage";
@@ -28,7 +28,7 @@ export async function GET(req: Request) {
     }
 
     const sourceRepoId = await resolveSourceRepoId(repoId);
-    const status = await getDeploymentStatusForLatestCommit(
+    const status = await freestyleDeploymentProvider.getStatusForLatestCommit(
       sourceRepoId,
       isAgentRunning,
     );

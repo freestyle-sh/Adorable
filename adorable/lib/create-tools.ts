@@ -1,6 +1,6 @@
 import { tool } from "ai";
-import { freestyle } from "freestyle-sandboxes";
 import { z } from "zod";
+import { freestyleDeploymentProvider } from "@/lib/adapters";
 import type { SandboxRuntime } from "@/lib/ports";
 import { getDomainForCommit } from "./deployment-status";
 import { addRepoDeployment, readRepoMetadata } from "./repo-storage";
@@ -362,16 +362,12 @@ export const createTools = (
             state: "deploying",
           });
 
-          const deployment = await freestyle.serverless.deployments.create({
-            repo: options.sourceRepoId!,
-            domains: [deploymentDomain],
-            build: true,
-          });
-
-          const deploymentId =
-            deployment && typeof deployment === "object" && "id" in deployment
-              ? String((deployment as Record<string, unknown>).id ?? "") || null
-              : null;
+          const { deploymentId } =
+            await freestyleDeploymentProvider.createDeployment({
+              repoId: options.sourceRepoId!,
+              domains: [deploymentDomain],
+              build: true,
+            });
 
           const latestMetadata = await readRepoMetadata(
             options.metadataRepoId!,

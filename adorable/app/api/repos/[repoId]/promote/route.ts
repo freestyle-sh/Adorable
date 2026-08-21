@@ -4,6 +4,7 @@ import { createFreestyleAccessContext } from "@/lib/application/access-control-s
 import { getOrCreateIdentitySession } from "@/lib/identity-session";
 import {
   promoteRepoDeploymentToProduction,
+  type RepoMetadata,
   readRepoMetadata,
 } from "@/lib/repo-storage";
 
@@ -14,6 +15,43 @@ const assertRepoAccess = async (repoId: string) => {
     identity,
   });
   return access.hasGitRepoAccess(repoId);
+};
+
+type DeploymentEntry = {
+  deploymentId: string;
+  domains: string[];
+};
+
+const ownsDeployment = async (
+  metadata: RepoMetadata,
+  deploymentId: string,
+) => {
+  if (
+    metadata.deployments.some(
+      (deployment) => deployment.deploymentId === deploymentId,
+    )
+  ) {
+    return true;
+  }
+
+  const knownDomains = new Set(
+    metadata.deployments.map((deployment) => deployment.domain),
+  );
+  if (knownDomains.size === 0) return false;
+
+  try {
+    const { entries } = await freestyle.serverless.deployments.list({
+      limit: 500,
+    });
+    const match = (entries as DeploymentEntry[]).find(
+      (entry) => entry.deploymentId === deploymentId,
+    );
+    return Boolean(
+      match?.domains.some((domain) => knownDomains.has(domain)),
+    );
+  } catch {
+    return false;
+  }
 };
 
 export async function POST(
@@ -54,6 +92,10 @@ export async function POST(
       { error: "Configure a production domain ending in .style.dev first" },
       { status: 400 },
     );
+  }
+
+  if (!(await ownsDeployment(metadata, deploymentId))) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
   await freestyle.domains.mappings.create({

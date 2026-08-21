@@ -1,6 +1,7 @@
 import { tool } from "ai";
-import { freestyle, Vm } from "freestyle-sandboxes";
+import { freestyle } from "freestyle-sandboxes";
 import { z } from "zod";
+import type { SandboxRuntime } from "@/lib/ports";
 import { getDomainForCommit } from "./deployment-status";
 import { addRepoDeployment, readRepoMetadata } from "./repo-storage";
 import { WORKDIR, VM_PORT } from "./vars";
@@ -25,7 +26,10 @@ const shellQuote = (value: string): string => {
   return `'${value.replace(/'/g, `'\\''`)}'`;
 };
 
-export const createTools = (vm: Vm, options?: CreateToolsOptions) => {
+export const createTools = (
+  vm: SandboxRuntime,
+  options?: CreateToolsOptions,
+) => {
   const runExecCommand = async (command: string) => {
     const execResult = await vm.exec({ command });
     if (typeof execResult === "string") {

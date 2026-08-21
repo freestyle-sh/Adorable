@@ -57,7 +57,7 @@ export async function POST(req: Request) {
 
   const vm = freestyleSandboxProvider.getRuntime(metadata.vm.vmId);
 
-  const tools = createVmTools(vm as Parameters<typeof createVmTools>[0], {
+  const tools = createVmTools(vm, {
     sourceRepoId: metadata.sourceRepoId,
     metadataRepoId: repoId,
   });

@@ -1,10 +1,9 @@
 import { type UIMessage } from "ai";
 import { cookies } from "next/headers";
-import { freestyle } from "freestyle-sandboxes";
+import { freestyleSandboxProvider } from "@/lib/adapters";
 import { createTools as createVmTools } from "@/lib/create-tools";
 import { createFreestyleAccessContext } from "@/lib/application/access-control-service";
 import { streamLlmResponse } from "@/lib/llm-provider";
-import { adorableVmSpec } from "@/lib/adorable-vm";
 import { getOrCreateIdentitySession } from "@/lib/identity-session";
 import { readRepoMetadata, saveConversationMessages } from "@/lib/repo-storage";
 import { SYSTEM_PROMPT } from "@/lib/system-prompt";
@@ -56,12 +55,9 @@ export async function POST(req: Request) {
 
   await saveConversationMessages(repoId, metadata, conversationId, messages);
 
-  const vm = freestyle.vms.ref({
-    vmId: metadata.vm.vmId,
-    spec: adorableVmSpec,
-  });
+  const vm = freestyleSandboxProvider.getRuntime(metadata.vm.vmId);
 
-  const tools = createVmTools(vm, {
+  const tools = createVmTools(vm as Parameters<typeof createVmTools>[0], {
     sourceRepoId: metadata.sourceRepoId,
     metadataRepoId: repoId,
   });

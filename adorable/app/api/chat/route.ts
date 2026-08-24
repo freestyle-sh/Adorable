@@ -1,11 +1,14 @@
 import { type UIMessage } from "ai";
 import { cookies } from "next/headers";
-import { freestyleSandboxProvider } from "@/lib/adapters";
+import {
+  freestyleConversationStore,
+  freestyleProjectStore,
+  freestyleSandboxProvider,
+} from "@/lib/adapters";
 import { createTools as createVmTools } from "@/lib/create-tools";
 import { createFreestyleAccessContext } from "@/lib/application/access-control-service";
 import { streamLlmResponse } from "@/lib/llm-provider";
 import { getOrCreateIdentitySession } from "@/lib/identity-session";
-import { readRepoMetadata, saveConversationMessages } from "@/lib/repo-storage";
 import { SYSTEM_PROMPT } from "@/lib/system-prompt";
 
 export async function POST(req: Request) {
@@ -45,7 +48,7 @@ export async function POST(req: Request) {
     return Response.json({ error: "Forbidden" }, { status: 403 });
   }
 
-  const metadata = await readRepoMetadata(repoId);
+  const metadata = await freestyleProjectStore.readMetadata(repoId);
   if (!metadata) {
     return Response.json(
       { error: "Repository metadata not found." },
@@ -53,7 +56,12 @@ export async function POST(req: Request) {
     );
   }
 
-  await saveConversationMessages(repoId, metadata, conversationId, messages);
+  await freestyleConversationStore.saveMessages({
+    repoId,
+    metadata,
+    conversationId,
+    messages,
+  });
 
   const vm = freestyleSandboxProvider.getRuntime(metadata.vm.vmId);
 
@@ -94,14 +102,14 @@ export async function POST(req: Request) {
     originalMessages: messages,
     generateMessageId: () => crypto.randomUUID(),
     onFinish: async ({ messages: finalMessages }) => {
-      const latestMetadata = await readRepoMetadata(repoId);
+      const latestMetadata = await freestyleProjectStore.readMetadata(repoId);
       if (!latestMetadata) return;
-      await saveConversationMessages(
+      await freestyleConversationStore.saveMessages({
         repoId,
-        latestMetadata,
+        metadata: latestMetadata,
         conversationId,
-        finalMessages,
-      );
+        messages: finalMessages,
+      });
     },
   });
 }

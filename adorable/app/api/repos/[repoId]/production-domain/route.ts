@@ -2,7 +2,6 @@ import { NextResponse } from "next/server";
 import { freestyleProjectStore } from "@/lib/adapters";
 import { createFreestyleAccessContext } from "@/lib/application/access-control-service";
 import { getOrCreateIdentitySession } from "@/lib/identity-session";
-import { setRepoProductionDomain } from "@/lib/repo-storage";
 
 const PRODUCTION_SUFFIX = ".style.dev";
 
@@ -64,7 +63,11 @@ export async function POST(
     );
   }
 
-  const nextMetadata = await setRepoProductionDomain(repoId, metadata, domain);
+  const nextMetadata = await freestyleProjectStore.setProductionDomain({
+    repoId,
+    metadata,
+    domain,
+  });
 
   return NextResponse.json({
     productionDomain: nextMetadata.productionDomain,

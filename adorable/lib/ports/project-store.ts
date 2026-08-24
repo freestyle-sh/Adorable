@@ -12,4 +12,9 @@ export interface ProjectStore {
     metadata: RepoMetadata;
     deployment: RepoDeploymentSummary;
   }): Promise<RepoMetadata>;
+  setProductionDomain(input: {
+    repoId: string;
+    metadata: RepoMetadata;
+    domain: string;
+  }): Promise<RepoMetadata>;
 }

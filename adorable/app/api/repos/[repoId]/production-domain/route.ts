@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
+import { freestyleProjectStore } from "@/lib/adapters";
 import { createFreestyleAccessContext } from "@/lib/application/access-control-service";
 import { getOrCreateIdentitySession } from "@/lib/identity-session";
-import { readRepoMetadata, setRepoProductionDomain } from "@/lib/repo-storage";
+import { setRepoProductionDomain } from "@/lib/repo-storage";
 
 const PRODUCTION_SUFFIX = ".style.dev";
 
@@ -55,7 +56,7 @@ export async function POST(
     );
   }
 
-  const metadata = await readRepoMetadata(repoId);
+  const metadata = await freestyleProjectStore.readMetadata(repoId);
   if (!metadata) {
     return NextResponse.json(
       { error: "Repository metadata not found" },

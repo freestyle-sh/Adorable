@@ -1,12 +1,14 @@
 import { NextResponse } from "next/server";
-import { freestyleDeploymentProvider } from "@/lib/adapters";
+import {
+  freestyleDeploymentProvider,
+  freestyleProjectStore,
+} from "@/lib/adapters";
 import { createFreestyleAccessContext } from "@/lib/application/access-control-service";
 import { projectApplicationService } from "@/lib/application/project-application-service";
 import { getOrCreateIdentitySession } from "@/lib/identity-session";
 import {
   ADORABLE_WRAPPER_REPO_PREFIX,
   type RepoDeploymentSummary,
-  readRepoMetadata,
 } from "@/lib/repo-storage";
 
 const toDisplayRepoName = (name?: string | null) => {
@@ -60,7 +62,7 @@ const toRepoResponse = async (
   repo: { id: string; name?: string | null },
   deploymentEntries: DeploymentEntry[],
 ) => {
-  const metadata = await readRepoMetadata(repo.id);
+  const metadata = await freestyleProjectStore.readMetadata(repo.id);
   const repoDisplayName = toDisplayRepoName(repo.name);
   const metadataDisplayName = toDisplayRepoName(metadata?.name);
   const reconciledMetadata = metadata

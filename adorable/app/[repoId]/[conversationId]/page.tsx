@@ -1,8 +1,8 @@
 import { Assistant } from "../../assistant";
 import { RepoWelcome } from "@/components/assistant-ui/repo-welcome";
+import { freestyleConversationStore } from "@/lib/adapters";
 import { createFreestyleAccessContext } from "@/lib/application/access-control-service";
 import { getOrCreateIdentitySession } from "@/lib/identity-session";
-import { readConversationMessages } from "@/lib/repo-storage";
 
 const hasRepoAccess = async (repoId: string) => {
   const { identityId, identity } = await getOrCreateIdentitySession();
@@ -31,7 +31,7 @@ export default async function ConversationPage({
     );
   }
 
-  const initialMessages = await readConversationMessages(
+  const initialMessages = await freestyleConversationStore.readMessages(
     repoId,
     conversationId,
   );

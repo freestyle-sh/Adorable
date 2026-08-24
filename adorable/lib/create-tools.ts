@@ -1,9 +1,12 @@
 import { tool } from "ai";
 import { z } from "zod";
-import { freestyleDeploymentProvider } from "@/lib/adapters";
+import {
+  freestyleDeploymentProvider,
+  freestyleProjectStore,
+} from "@/lib/adapters";
 import type { SandboxRuntime } from "@/lib/ports";
 import { getDomainForCommit } from "./deployment-status";
-import { addRepoDeployment, readRepoMetadata } from "./repo-storage";
+import { addRepoDeployment } from "./repo-storage";
 import { WORKDIR, VM_PORT } from "./vars";
 
 type CreateToolsOptions = {
@@ -349,7 +352,9 @@ export const createTools = (
           if (!commitSha) return;
 
           const deploymentDomain = getDomainForCommit(commitSha);
-          const metadata = await readRepoMetadata(options.metadataRepoId!);
+          const metadata = await freestyleProjectStore.readMetadata(
+            options.metadataRepoId!,
+          );
           if (!metadata) return;
 
           await addRepoDeployment(options.metadataRepoId!, metadata, {
@@ -369,7 +374,7 @@ export const createTools = (
               build: true,
             });
 
-          const latestMetadata = await readRepoMetadata(
+          const latestMetadata = await freestyleProjectStore.readMetadata(
             options.metadataRepoId!,
           );
           if (!latestMetadata) return;

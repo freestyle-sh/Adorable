@@ -5,6 +5,7 @@ import {
   type RepoDeploymentSummary,
   resolveSourceRepoId,
   type RepoMetadata,
+  setRepoProductionDomain,
   writeRepoMetadata,
 } from "@/lib/repo-storage";
 
@@ -27,6 +28,18 @@ export class FreestyleProjectStore implements ProjectStore {
     deployment: RepoDeploymentSummary;
   }): Promise<RepoMetadata> {
     return addRepoDeployment(input.repoId, input.metadata, input.deployment);
+  }
+
+  async setProductionDomain(input: {
+    repoId: string;
+    metadata: RepoMetadata;
+    domain: string;
+  }): Promise<RepoMetadata> {
+    return setRepoProductionDomain(
+      input.repoId,
+      input.metadata,
+      input.domain,
+    );
   }
 }
 

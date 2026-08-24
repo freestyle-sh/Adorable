@@ -1,8 +1,11 @@
 import { randomUUID } from "crypto";
 import { NextResponse } from "next/server";
+import {
+  freestyleConversationStore,
+  freestyleProjectStore,
+} from "@/lib/adapters";
 import { createFreestyleAccessContext } from "@/lib/application/access-control-service";
 import { getOrCreateIdentitySession } from "@/lib/identity-session";
-import { createConversationInRepo, readRepoMetadata } from "@/lib/repo-storage";
 
 const assertRepoAccess = async (repoId: string) => {
   const { identityId, identity } = await getOrCreateIdentitySession();
@@ -23,7 +26,7 @@ export async function GET(
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
-  const metadata = await readRepoMetadata(repoId);
+  const metadata = await freestyleProjectStore.readMetadata(repoId);
   if (!metadata) {
     return NextResponse.json(
       { error: "Repository metadata not found" },
@@ -53,7 +56,7 @@ export async function POST(
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
-  const metadata = await readRepoMetadata(repoId);
+  const metadata = await freestyleProjectStore.readMetadata(repoId);
   if (!metadata) {
     return NextResponse.json(
       { error: "Repository metadata not found" },
@@ -62,12 +65,12 @@ export async function POST(
   }
 
   const conversationId = randomUUID();
-  const next = await createConversationInRepo(
+  const next = await freestyleConversationStore.createConversation({
     repoId,
     metadata,
     conversationId,
-    requestedTitle,
-  );
+    title: requestedTitle,
+  });
 
   return NextResponse.json({
     conversationId,

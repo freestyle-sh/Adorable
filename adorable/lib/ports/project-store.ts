@@ -17,4 +17,9 @@ export interface ProjectStore {
     metadata: RepoMetadata;
     domain: string;
   }): Promise<RepoMetadata>;
+  promoteDeploymentToProduction(input: {
+    repoId: string;
+    metadata: RepoMetadata;
+    deploymentId: string;
+  }): Promise<RepoMetadata>;
 }

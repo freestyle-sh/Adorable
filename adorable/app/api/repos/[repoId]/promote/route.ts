@@ -5,10 +5,7 @@ import {
 } from "@/lib/adapters";
 import { createFreestyleAccessContext } from "@/lib/application/access-control-service";
 import { getOrCreateIdentitySession } from "@/lib/identity-session";
-import {
-  promoteRepoDeploymentToProduction,
-  type RepoMetadata,
-} from "@/lib/repo-storage";
+import { type RepoMetadata } from "@/lib/repo-storage";
 
 const assertRepoAccess = async (repoId: string) => {
   const { identityId, identity } = await getOrCreateIdentitySession();
@@ -103,11 +100,12 @@ export async function POST(
     deploymentId,
   });
 
-  const nextMetadata = await promoteRepoDeploymentToProduction(
-    repoId,
-    metadata,
-    deploymentId,
-  );
+  const nextMetadata =
+    await freestyleProjectStore.promoteDeploymentToProduction({
+      repoId,
+      metadata,
+      deploymentId,
+    });
 
   return NextResponse.json({
     productionDomain: nextMetadata.productionDomain,

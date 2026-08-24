@@ -1,6 +1,7 @@
 import type { ProjectStore } from "@/lib/ports";
 import {
   addRepoDeployment,
+  promoteRepoDeploymentToProduction,
   readRepoMetadata,
   type RepoDeploymentSummary,
   resolveSourceRepoId,
@@ -39,6 +40,18 @@ export class FreestyleProjectStore implements ProjectStore {
       input.repoId,
       input.metadata,
       input.domain,
+    );
+  }
+
+  async promoteDeploymentToProduction(input: {
+    repoId: string;
+    metadata: RepoMetadata;
+    deploymentId: string;
+  }): Promise<RepoMetadata> {
+    return promoteRepoDeploymentToProduction(
+      input.repoId,
+      input.metadata,
+      input.deploymentId,
     );
   }
 }

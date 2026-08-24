@@ -1,7 +1,9 @@
-import { freestyleDeploymentProvider } from "@/lib/adapters";
+import {
+  freestyleDeploymentProvider,
+  freestyleProjectStore,
+} from "@/lib/adapters";
 import { createFreestyleAccessContext } from "@/lib/application/access-control-service";
 import { getOrCreateIdentitySession } from "@/lib/identity-session";
-import { resolveSourceRepoId } from "@/lib/repo-storage";
 
 export async function GET(req: Request) {
   const { searchParams } = new URL(req.url);
@@ -27,7 +29,8 @@ export async function GET(req: Request) {
       return Response.json({ error: "Forbidden" }, { status: 403 });
     }
 
-    const sourceRepoId = await resolveSourceRepoId(repoId);
+    const sourceRepoId =
+      await freestyleProjectStore.resolveSourceRepoId(repoId);
     const status = await freestyleDeploymentProvider.getStatusForLatestCommit(
       sourceRepoId,
       isAgentRunning,

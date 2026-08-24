@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
+import { freestyleConversationStore } from "@/lib/adapters";
 import { createFreestyleAccessContext } from "@/lib/application/access-control-service";
 import { getOrCreateIdentitySession } from "@/lib/identity-session";
-import { readConversationMessages } from "@/lib/repo-storage";
 
 const assertRepoAccess = async (repoId: string) => {
   const { identityId, identity } = await getOrCreateIdentitySession();
@@ -22,6 +22,9 @@ export async function GET(
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
-  const messages = await readConversationMessages(repoId, conversationId);
+  const messages = await freestyleConversationStore.readMessages(
+    repoId,
+    conversationId,
+  );
   return NextResponse.json({ messages });
 }

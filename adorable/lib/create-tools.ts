@@ -6,7 +6,6 @@ import {
 } from "@/lib/adapters";
 import type { SandboxRuntime } from "@/lib/ports";
 import { getDomainForCommit } from "./deployment-status";
-import { addRepoDeployment } from "./repo-storage";
 import { WORKDIR, VM_PORT } from "./vars";
 
 type CreateToolsOptions = {
@@ -357,14 +356,18 @@ export const createTools = (
           );
           if (!metadata) return;
 
-          await addRepoDeployment(options.metadataRepoId!, metadata, {
-            commitSha,
-            commitMessage: message,
-            commitDate: new Date().toISOString(),
-            domain: deploymentDomain,
-            url: `https://${deploymentDomain}`,
-            deploymentId: null,
-            state: "deploying",
+          await freestyleProjectStore.recordDeployment({
+            repoId: options.metadataRepoId!,
+            metadata,
+            deployment: {
+              commitSha,
+              commitMessage: message,
+              commitDate: new Date().toISOString(),
+              domain: deploymentDomain,
+              url: `https://${deploymentDomain}`,
+              deploymentId: null,
+              state: "deploying",
+            },
           });
 
           const { deploymentId } =
@@ -379,14 +382,18 @@ export const createTools = (
           );
           if (!latestMetadata) return;
 
-          await addRepoDeployment(options.metadataRepoId!, latestMetadata, {
-            commitSha,
-            commitMessage: message,
-            commitDate: new Date().toISOString(),
-            domain: deploymentDomain,
-            url: `https://${deploymentDomain}`,
-            deploymentId,
-            state: "deploying",
+          await freestyleProjectStore.recordDeployment({
+            repoId: options.metadataRepoId!,
+            metadata: latestMetadata,
+            deployment: {
+              commitSha,
+              commitMessage: message,
+              commitDate: new Date().toISOString(),
+              domain: deploymentDomain,
+              url: `https://${deploymentDomain}`,
+              deploymentId,
+              state: "deploying",
+            },
           });
         })().catch((error) => {
           console.error("Post-commit deploy failed:", error);

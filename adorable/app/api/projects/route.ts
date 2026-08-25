@@ -56,16 +56,18 @@ export async function POST(req: Request) {
     ? `https://github.com/${githubRepoName.replace(/^https?:\/\/github\.com\//, "")}`
     : undefined;
 
-  const { projectId, prodVmId, previewDomain, productionDomain } =
-    await createProjectVms(name, sourceRepoUrl);
+  const { projectId, previewDomain, productionDomain } = await createProjectVms(
+    name,
+    sourceRepoUrl,
+  );
 
-  await grantVmAccess([projectId, prodVmId]);
+  await grantVmAccess([projectId]);
 
   const metadata: ProjectMetadata = {
     version: 3,
     name,
     createdAt: new Date().toISOString(),
-    prodVmId,
+    prodVmId: null,
     previewDomain,
     productionDomain,
     conversations: [],

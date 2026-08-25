@@ -10,7 +10,7 @@ Every project is a pair of [Freestyle](https://freestyle.sh) VMs: a **dev VM** t
 
 - **Conversational app building** — Chat with an AI that writes, edits, and runs code inside a real Linux VM
 - **Live preview & terminals** — Watch the app update as it is built, and open as many shells on the VM as you want
-- **Publish and roll back** — Build the current code onto the production VM in one click; every release keeps a snapshot to roll back to
+- **Publish and roll back** — Ship the current code to the production VM in a few seconds; every release keeps a snapshot to roll back to
 - **Persistent projects** — Project state and conversation history live on the project's own VM, so nothing is lost between sessions
 - **Import from GitHub** — Start a project from any public repository
 
@@ -48,10 +48,13 @@ A snapshot captures memory as well as disk, so the running, already-compiled dev
 
 | | Dev VM | Production VM |
 |---|---|---|
-| Runs | `npm run dev` | `npm run start` |
+| Exists | from the moment the project does | created by the first publish |
+| Runs | `npm run dev` | `npm run dev` |
 | Address | preview domain | production domain |
 | Edited by | the agent | nothing — only publishes |
 
-**Publishing** packages the dev VM's source (no `node_modules`, no build output), copies it to the production VM, installs, builds, and restarts the production server. It also snapshots the dev VM, so any earlier release can be restored: a rollback boots a throwaway VM from that snapshot and ships it to production the same way.
+**Publishing** packages the dev VM's source (no `node_modules`, no build output) and rsyncs it into the production VM's workdir, underneath its already-running server, which hot-reloads it. There is no build step and no restart, so a publish takes **~4s** (~6s the first time, which also creates the VM). Dependencies are reinstalled only when `package.json` or the lockfile actually changed.
+
+It also snapshots the dev VM, so any earlier release can be restored: a rollback boots a throwaway VM from that snapshot and ships it to production the same way, in about the same time.
 
 **State** — a project's metadata and its conversations are JSON files under `/adorable` on its dev VM. The project list is a VM listing filtered by metadata. There is no database.

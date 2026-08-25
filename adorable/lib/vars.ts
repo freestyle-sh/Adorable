@@ -25,9 +25,12 @@ export const TEMPLATE_REPO =
  */
 export const DOMAIN_SUFFIX = "adorable.app";
 
-/** The named PTY session running each VM's server. See lib/pty-sessions.ts. */
-export const DEV_SESSION = "dev";
-export const PROD_SESSION = "prod";
+/**
+ * The named PTY session running a VM's app server — `npm run dev`, on the dev
+ * VM and the production VM alike. Naming it makes `pty.open` get-or-create, so
+ * a VM restored from the base snapshot is found already serving.
+ */
+export const APP_SESSION = "dev";
 
 /** VM metadata keys, used to index projects without a database. */
 export const META_KIND = "adorable";

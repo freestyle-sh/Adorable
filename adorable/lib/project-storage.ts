@@ -153,6 +153,10 @@ export const updateRelease = (
     liveReleaseId: patch.state === "live" ? releaseId : current.liveReleaseId,
   }));
 
+/** Record the production VM the first publish created. */
+export const setProdVmId = (projectId: string, prodVmId: string) =>
+  updateProjectMetadata(projectId, (current) => ({ ...current, prodVmId }));
+
 export const setProductionDomain = (projectId: string, domain: string) =>
   updateProjectMetadata(projectId, (current) => ({
     ...current,

@@ -19,6 +19,8 @@ const WORKDIR = "/workspace";
 const VM_PORT = 3000;
 /** Routes requested before snapshotting, so their compile is already done. */
 const WARM_PATHS = ["/"];
+/** Must match APP_SESSION in lib/vars.ts. */
+const APP_SESSION = "dev";
 const ADORABLE_DIR = "/adorable";
 const SNAPSHOT_SLUG = "adorable-base";
 const TEMPLATE_REPO =
@@ -86,22 +88,18 @@ try {
     await vm.exec({ command: `mkdir -p ${ADORABLE_DIR}/conversations` }),
   );
 
-  // Start the dev server and record which session it is. The API can name a
-  // session, but the server does not retain the name yet, so the id is stored
-  // on disk where lib/pty-sessions.ts looks for it — otherwise a project would
-  // start a second dev server alongside this one.
+  // Start the dev server under the name projects address it by. The name is
+  // captured in the snapshot along with the session, so a project restored
+  // from it finds the server already running rather than starting a second.
   const session = await vm.pty.open({
+    slug: APP_SESSION,
     exec: `cd ${WORKDIR} && npm run dev`,
     replaceOnExit: true,
     cols: 120,
     rows: 30,
   });
   session.detach();
-  await vm.fs.writeTextFile(
-    `${ADORABLE_DIR}/pty-sessions.json`,
-    JSON.stringify({ dev: session.sessionId }, null, 2),
-  );
-  log(`dev server started (session ${session.sessionId})`);
+  log(`dev server started (session "${session.slug}")`);
 
   // Warm it: the first request is what makes Next compile a route, and that
   // compile is most of a new project's wait. Doing it here means every project

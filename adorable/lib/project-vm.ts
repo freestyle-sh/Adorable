@@ -1,16 +1,14 @@
 import { randomUUID } from "crypto";
 import type { FirewallSpec, Vm } from "freestyle";
 import { freestyle } from "./freestyle";
-import { closeNamedSession, ensureNamedSession } from "./pty-sessions";
 import {
   ADORABLE_DIR,
   BASE_SNAPSHOT_SLUG,
-  DEV_SESSION,
+  APP_SESSION,
   DOMAIN_SUFFIX,
   META_KIND,
   META_PROJECT,
   META_ROLE,
-  PROD_SESSION,
   VM_PORT,
   WORKDIR,
 } from "./vars";
@@ -64,40 +62,49 @@ export const remapDomain = async (
 };
 
 /**
- * Make sure a VM's long-lived server session is running. The session is named,
- * so this is get-or-create: it does not start a second server, and
+ * Make sure a VM's long-lived server session is running. Naming the session
+ * makes this get-or-create: it never starts a second server, and
  * `replaceOnExit` brings the shell back if the command dies.
  *
  * For a dev VM this is normally a no-op — the base snapshot is captured with
  * the dev server already running and warmed, and a snapshot restores memory as
- * well as disk, so the server is serving before the create call even returns.
+ * well as disk, so the server is serving before the create call returns.
  */
-const startServer = (vm: Vm, name: string, command: string) =>
-  ensureNamedSession(vm, name, `cd ${WORKDIR} && ${command}`);
+const startServer = async (vm: Vm, slug: string, command: string) => {
+  const session = await vm.pty.open({
+    slug,
+    exec: `cd ${WORKDIR} && ${command}`,
+    replaceOnExit: true,
+    cols: 120,
+    rows: 30,
+  });
+  // The session belongs to the guest and outlives this connection.
+  session.detach();
+};
 
 /** Stop the dev server and start a fresh one, for when its workdir changed underneath it. */
 export const restartDevServer = async (vm: Vm) => {
-  await closeNamedSession(vm, DEV_SESSION);
+  await vm.pty.close(APP_SESSION).catch(() => {});
   await startDevServer(vm);
 };
 
 export const startDevServer = (vm: Vm) =>
-  startServer(vm, DEV_SESSION, "npm run dev");
-
-export const startProdServer = (vm: Vm) =>
-  startServer(vm, PROD_SESSION, "npm run start");
+  startServer(vm, APP_SESSION, "npm run dev");
 
 export type CreatedProjectVms = {
   projectId: string;
-  prodVmId: string;
   previewDomain: string;
+  /** Reserved now, mapped at the first publish along with the VM behind it. */
   productionDomain: string;
 };
 
 /**
- * Create a project's two VMs from the base snapshot — one dev, one prod — map
- * a domain at each, and start the dev server. Both boot with the template's
- * node_modules already installed, so the dev server is up in seconds.
+ * Create a project's dev VM from the base snapshot, map its preview domain,
+ * and make sure the dev server is running.
+ *
+ * Only the dev VM. A project that is never published never needs a production
+ * VM, and one created here would sit idle burning a machine — so it is created
+ * by the first publish instead. See {@link createProdVm}.
  */
 export const createProjectVms = async (
   name: string,
@@ -116,6 +123,29 @@ export const createProjectVms = async (
     firewall: PROJECT_FIREWALL,
   });
 
+  await dev.exec(`mkdir -p ${ADORABLE_DIR}/conversations`);
+
+  if (sourceRepoUrl) {
+    // The clone replaces the workdir the inherited dev server is watching, so
+    // that server has to be replaced along with it.
+    await importRepo(dev, sourceRepoUrl);
+    await restartDevServer(dev);
+  }
+
+  await Promise.all([mapDomain(previewDomain, projectId), startDevServer(dev)]);
+
+  return { projectId, previewDomain, productionDomain };
+};
+
+/**
+ * Create the production VM for a project that does not have one yet, and put
+ * its production domain in front of it. Called by the first publish.
+ */
+export const createProdVm = async (
+  projectId: string,
+  name: string,
+  productionDomain: string,
+) => {
   const { vmId: prodVmId } = await freestyle.vms.create({
     snapshotId: BASE_SNAPSHOT_SLUG,
     displayName: `${name} (production)`,
@@ -128,25 +158,8 @@ export const createProjectVms = async (
     firewall: PROJECT_FIREWALL,
   });
 
-  await dev.exec(`mkdir -p ${ADORABLE_DIR}/conversations`);
-
-  if (sourceRepoUrl) {
-    // The clone replaces the workdir the inherited dev server is watching, so
-    // that server has to be replaced along with it.
-    await importRepo(dev, sourceRepoUrl);
-    await restartDevServer(dev);
-  }
-
-  await Promise.all([
-    mapDomain(previewDomain, projectId),
-    mapDomain(productionDomain, prodVmId),
-    startDevServer(dev),
-    // Production boots from the same snapshot, so it starts with a dev server
-    // holding the app port. Nothing should serve there until a publish does.
-    closeNamedSession(prodVm(prodVmId), DEV_SESSION),
-  ]);
-
-  return { projectId, prodVmId, previewDomain, productionDomain };
+  await mapDomain(productionDomain, prodVmId);
+  return prodVmId;
 };
 
 /**

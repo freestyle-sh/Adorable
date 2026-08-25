@@ -41,7 +41,9 @@ export async function POST(
     );
   }
 
-  await remapDomain(domain, metadata.prodVmId);
+  // Before the first publish there is no production VM yet, so the name is
+  // just recorded — the publish that creates the VM maps it.
+  if (metadata.prodVmId) await remapDomain(domain, metadata.prodVmId);
   const next = await setProductionDomain(projectId, domain);
 
   return NextResponse.json({

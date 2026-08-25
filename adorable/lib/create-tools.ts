@@ -2,8 +2,7 @@ import { tool } from "ai";
 import type { Vm } from "freestyle";
 import { z } from "zod";
 import { restartDevServer } from "./project-vm";
-import { openNamedSession } from "./pty-sessions";
-import { DEV_SESSION, VM_PORT, WORKDIR } from "./vars";
+import { APP_SESSION, VM_PORT, WORKDIR } from "./vars";
 
 /**
  * Resolve a workdir-relative path to the absolute path the VM filesystem API
@@ -47,7 +46,8 @@ export const createTools = (vm: Vm) => {
     const chunks: string[] = [];
     const decoder = new TextDecoder();
 
-    const session = await openNamedSession(vm, DEV_SESSION, {
+    const session = await vm.pty.attach({
+      session: APP_SESSION,
       onData: (data) => chunks.push(decoder.decode(data, { stream: true })),
     });
 

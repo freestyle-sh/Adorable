@@ -6,18 +6,18 @@ import {
   subscribeToTerminal,
   writeToTerminal,
 } from "@/lib/terminal-bridge";
-import { DEV_SESSION, WORKDIR } from "@/lib/vars";
+import { APP_SESSION, WORKDIR } from "@/lib/vars";
 
 /** A terminal name the browser may ask for: the dev server, or an ad-hoc shell. */
 const parseSession = (raw: string | null) => {
-  const slug = (raw ?? DEV_SESSION).trim();
+  const slug = (raw ?? APP_SESSION).trim();
   if (!/^[a-z0-9-]{1,60}$/.test(slug) || /^\d+$/.test(slug)) return null;
   return slug;
 };
 
 /** The dev server session already exists; any other name gets a login shell. */
 const commandFor = (slug: string) =>
-  slug === DEV_SESSION ? undefined : `cd ${WORKDIR} && exec bash -l`;
+  slug === APP_SESSION ? undefined : `cd ${WORKDIR} && exec bash -l`;
 
 /** Stream one terminal's output to the browser as server-sent events. */
 export async function GET(

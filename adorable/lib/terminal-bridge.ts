@@ -1,6 +1,5 @@
 import type { PtySession } from "freestyle";
 import { devVm } from "./project-vm";
-import { openNamedSession } from "./pty-sessions";
 
 /**
  * A VM's terminal WebSocket authenticates with a header, and browsers cannot
@@ -65,10 +64,20 @@ const bridge = (vmId: string, slug: string, command?: string) => {
       onError: () => registry.delete(id),
     };
 
-    const session = await openNamedSession(devVm(vmId), slug, {
-      ...(command ? { command } : {}),
-      ...events,
-    });
+    // Attach first: only attaching replays a session's retained scrollback,
+    // which is what puts the dev server's existing output into a freshly
+    // opened tab. `open` is the fallback for a name with no session yet.
+    const pty = devVm(vmId).pty;
+    const session = await pty.attach({ session: slug, ...events }).catch(() =>
+      pty.open({
+        slug,
+        ...(command ? { exec: command } : {}),
+        replaceOnExit: true,
+        cols: 120,
+        rows: 30,
+        ...events,
+      }),
+    );
 
     return {
       session,

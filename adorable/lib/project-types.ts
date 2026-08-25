@@ -23,8 +23,11 @@ export type ProjectMetadata = {
   version: 3;
   name: string;
   createdAt: string;
-  /** The project's other VM: built and served, never edited by the agent. */
-  prodVmId: string;
+  /**
+   * The project's other VM: built and served, never edited by the agent.
+   * Null until the first publish, which is what creates it.
+   */
+  prodVmId: string | null;
   /** Where the dev VM's live-reloading app is served. */
   previewDomain: string;
   /** Where the prod VM is served, once a release has been published. */
@@ -40,7 +43,7 @@ export type ProjectItem = {
   name: string;
   previewUrl: string;
   productionUrl: string;
-  prodVmId: string;
+  prodVmId: string | null;
   conversations: ProjectConversationSummary[];
   releases: ProjectRelease[];
   liveReleaseId: string | null;

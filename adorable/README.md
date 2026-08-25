@@ -47,8 +47,7 @@ Open [http://localhost:3000](http://localhost:3000).
 - `lib/freestyle.ts` — the API client
 - `lib/project-vm.ts` — creating a project's dev and production VMs, domains, and servers
 - `lib/project-storage.ts` — project metadata and conversations, stored on the dev VM's disk
-- `lib/publish.ts` — building the dev VM's code onto production, and rolling back
-- `lib/pty-sessions.ts` — named terminal sessions (see its comment: the API's `slug` is not yet honored server-side)
+- `lib/publish.ts` — shipping the dev VM's code onto production, and rolling back
 - `lib/terminal-bridge.ts` — one server-held PTY connection per session, fanned out to browser tabs
 - `scripts/bootstrap-base-snapshot.mjs` — builds the `adorable-base` snapshot
 

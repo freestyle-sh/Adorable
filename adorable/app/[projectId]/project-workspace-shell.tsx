@@ -29,8 +29,8 @@ type TerminalTab = {
   closable: boolean;
 };
 
-/** The session the project's dev server already runs in. */
-const DEV_SESSION = "dev";
+/** The session the project's app server runs in. Matches APP_SESSION in lib/vars.ts. */
+const APP_SESSION = "dev";
 
 type OptimisticMetadataDetail = {
   projectId: string;
@@ -567,7 +567,7 @@ function AppPreview({
     {
       id: "dev-server",
       label: "Dev Server",
-      session: DEV_SESSION,
+      session: APP_SESSION,
       closable: false,
     },
     ...extraTerminals,

@@ -5,7 +5,7 @@ import {
 } from "@/lib/adapters";
 import { createFreestyleAccessContext } from "@/lib/application/access-control-service";
 import { getOrCreateIdentitySession } from "@/lib/identity-session";
-import { type RepoMetadata } from "@/lib/repo-storage";
+import type { RepoMetadata } from "@/lib/project-metadata";
 
 const assertRepoAccess = async (repoId: string) => {
   const { identityId, identity } = await getOrCreateIdentitySession();

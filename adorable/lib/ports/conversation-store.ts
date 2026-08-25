@@ -1,5 +1,8 @@
 import type { UIMessage } from "ai";
-import type { RepoConversationSummary, RepoMetadata } from "@/lib/repo-storage";
+import type {
+  RepoConversationSummary,
+  RepoMetadata,
+} from "@/lib/project-metadata";
 
 export type CreateConversationInput = {
   repoId: string;

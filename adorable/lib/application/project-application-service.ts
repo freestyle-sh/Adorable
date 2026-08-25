@@ -12,10 +12,8 @@ import type {
   ProjectStore,
   SandboxProvider,
 } from "@/lib/ports";
-import {
-  ADORABLE_WRAPPER_REPO_PREFIX,
-  type RepoMetadata,
-} from "@/lib/repo-storage";
+import type { RepoMetadata } from "@/lib/project-metadata";
+import { ADORABLE_WRAPPER_REPO_PREFIX } from "@/lib/repo-storage";
 import { TEMPLATE_REPO } from "@/lib/vars";
 
 export type CreateProjectInput = {

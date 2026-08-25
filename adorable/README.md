@@ -1,68 +1,61 @@
-This is an [assistant-ui](https://github.com/Yonom/assistant-ui) project with provider-agnostic backend routing and repo-backed conversation persistence.
+The Adorable web app: an [assistant-ui](https://github.com/Yonom/assistant-ui) chat front end over a pair of Freestyle VMs per project. See the [root README](../README.md) for the architecture.
 
 ## Getting Started
 
-### 1. Configure Environment Variables
+### 1. Environment
 
-Create a `.env.local` file in the root directory and add your credentials:
+`.env` needs a Freestyle API key, and an LLM key unless visitors supply their own through the UI:
 
 ```
+FREESTYLE_API_KEY=your-freestyle-api-key
+
 # Default provider: OpenAI
 LLM_PROVIDER=openai
 OPENAI_API_KEY=your-openai-api-key
 
 # Optional: Claude provider support (swap provider without touching UI code)
-# LLM_PROVIDER=claude
+# LLM_PROVIDER=anthropic
 # ANTHROPIC_API_KEY=your-anthropic-api-key
 ```
 
-> **Note**: You can copy `.env.example` to `.env.local` and fill in your values.
-
-### 2. Install Dependencies
+### 2. Install dependencies
 
 ```bash
 npm install
-# or
-yarn install
-# or
-pnpm install
-# or
-bun install
 ```
 
-### 3. Run the Development Server
+### 3. Build the base snapshot
+
+Once per template change. Projects boot from this snapshot with dependencies installed and the dev server already running and warmed, so a new project's preview is live in about 1.7s.
+
+```bash
+npm run bootstrap
+```
+
+### 4. Run the development server
 
 ```bash
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open [http://localhost:3000](http://localhost:3000).
 
-### 4. (Optional) Set Up GitHub Sync
+## Key files
 
-To enable creating projects from existing GitHub repositories:
+### Freestyle
 
-1. Follow the [GitHub App Setup Guide](../GITHUB_APP_SETUP.md)
-2. Create a GitHub App through the [Freestyle Dashboard](https://dash.freestyle.sh/)
-3. Install the GitHub App on your GitHub repositories
-4. Use the "From GitHub" option when creating new projects
+- `lib/freestyle.ts` — the API client
+- `lib/project-vm.ts` — creating a project's dev and production VMs, domains, and servers
+- `lib/project-storage.ts` — project metadata and conversations, stored on the dev VM's disk
+- `lib/publish.ts` — building the dev VM's code onto production, and rolling back
+- `lib/pty-sessions.ts` — named terminal sessions (see its comment: the API's `slug` is not yet honored server-side)
+- `lib/terminal-bridge.ts` — one server-held PTY connection per session, fanned out to browser tabs
+- `scripts/bootstrap-base-snapshot.mjs` — builds the `adorable-base` snapshot
 
-See [GITHUB_APP_SETUP.md](../GITHUB_APP_SETUP.md) for detailed instructions.
+### App
 
-## Development
-
-You can start customizing the UI by modifying components in the `components/assistant-ui/` directory.
-
-### Key Files
-
-- `app/assistant.tsx` - Renders the chat interface and sets up the assistant runtime
-- `app/api/chat/route.ts` - Chat API endpoint
-- `lib/llm-provider.ts` - Provider wrapper (OpenAI + Claude)
-- `components/assistant-ui/thread.tsx` - Chat thread component
-- `components/app-sidebar.tsx` - Sidebar with thread list
+- `app/assistant.tsx` — chat interface and assistant runtime
+- `app/[projectId]/project-workspace-shell.tsx` — preview, terminals, and publishing
+- `app/api/chat/route.ts` — chat endpoint; `lib/create-tools.ts` — the agent's VM tools
+- `lib/llm-provider.ts` — provider wrapper (OpenAI + Claude)
+- `components/assistant-ui/vm-terminal.tsx` — xterm.js terminal

@@ -3,11 +3,11 @@
 import { useProjectConversations } from "@/lib/project-conversations-context";
 import type { FC } from "react";
 
-export const RepoWelcome: FC = () => {
-  const { conversations, onSelectConversation, repoId } =
+export const ProjectWelcome: FC = () => {
+  const { conversations, onSelectConversation, projectId } =
     useProjectConversations();
 
-  const hasConversations = repoId && conversations.length > 0;
+  const hasConversations = projectId && conversations.length > 0;
 
   return (
     <div className="aui-thread-welcome-root mx-auto my-auto flex w-full max-w-(--thread-max-width) grow flex-col">

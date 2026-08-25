@@ -4,30 +4,54 @@
 
 An open-source AI app builder. Describe what you want, and Adorable builds it for you in real time — complete with a live preview, terminal, and one-click publishing.
 
+Every project is a pair of [Freestyle](https://freestyle.sh) VMs: a **dev VM** the agent edits, with a hot-reloading dev server behind a preview URL, and a **production VM** that serves the built app on its own domain. The VMs are permanent, so a project's code, installed packages, terminal sessions and history are simply still there when you come back.
+
 ## Features
 
-- **Conversational app building** — Chat with an AI that writes, edits, and runs code inside a sandboxed VM
-- **Live preview & terminal** — See your app update in real time with an embedded browser and terminal
-- **One-click publish** — Deploy to a production domain with a single click
-- **Persistent projects** — Every project is backed by a git repo; conversations and history are preserved across sessions
-- **GitHub Sync** — Create projects from existing GitHub repositories with bidirectional sync (see https://docs.freestyle.sh/v2/git/github-sync for setup)
+- **Conversational app building** — Chat with an AI that writes, edits, and runs code inside a real Linux VM
+- **Live preview & terminals** — Watch the app update as it is built, and open as many shells on the VM as you want
+- **Publish and roll back** — Build the current code onto the production VM in one click; every release keeps a snapshot to roll back to
+- **Persistent projects** — Project state and conversation history live on the project's own VM, so nothing is lost between sessions
+- **Import from GitHub** — Start a project from any public repository
 
 ## Tech Stack
 
 - **Framework:** [Next.js](https://nextjs.org) (App Router, TypeScript, Turbopack)
 - **AI:** [Vercel AI SDK](https://sdk.vercel.ai) with OpenAI and Anthropic support
 - **Chat UI:** [assistant-ui](https://github.com/Yonom/assistant-ui)
-- **Sandboxing:** [Freestyle](https://freestyle.sh) cloud VMs with git-backed persistence
+- **Compute:** [Freestyle](https://freestyle.sh) VMs (`freestyle` v0.2), with snapshots for releases and PTY sessions for terminals
 - **Styling:** Tailwind CSS + shadcn/ui
 
 ## Getting Started
 
 ```bash
 cd adorable
-cp .env.example .env.local  # add your API keys
 npm install
+
+# .env needs a Freestyle API key, plus an LLM key (or add one in the UI):
+#   FREESTYLE_API_KEY=...
+#   OPENAI_API_KEY=...        # or ANTHROPIC_API_KEY with LLM_PROVIDER=anthropic
+
+npm run bootstrap   # build the base snapshot every project boots from (once)
 npm run dev
 ```
 
 Open [http://localhost:3000](http://localhost:3000) to start building.
 
+### The base snapshot
+
+`npm run bootstrap` boots a plain Ubuntu VM, clones the Next.js + shadcn template, installs its dependencies, starts the dev server, and requests the pages until Next has compiled them — then snapshots all of that as `adorable-base`.
+
+A snapshot captures memory as well as disk, so the running, already-compiled dev server comes back with every VM booted from it. A new project serves its preview about **1.7s** after the create call, instead of spending ~10s on a cold boot and first compile. Re-run it whenever the template changes.
+
+## How a project works
+
+| | Dev VM | Production VM |
+|---|---|---|
+| Runs | `npm run dev` | `npm run start` |
+| Address | preview domain | production domain |
+| Edited by | the agent | nothing — only publishes |
+
+**Publishing** packages the dev VM's source (no `node_modules`, no build output), copies it to the production VM, installs, builds, and restarts the production server. It also snapshots the dev VM, so any earlier release can be restored: a rollback boots a throwaway VM from that snapshot and ships it to production the same way.
+
+**State** — a project's metadata and its conversations are JSON files under `/adorable` on its dev VM. The project list is a VM listing filtered by metadata. There is no database.

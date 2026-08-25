@@ -46,7 +46,7 @@ export const streamLlmResponse = async ({
     const openaiProvider = apiKey ? createOpenAI({ apiKey }) : createOpenAI({});
     const result = streamText({
       system,
-      model: openaiProvider.responses("gpt-5.2-codex"),
+      model: openaiProvider.responses("gpt-5.3-codex"),
       messages: modelMessages,
       tools,
       providerOptions: {

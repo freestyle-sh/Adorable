@@ -3,9 +3,10 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { cn } from "@/lib/utils";
-import type { RepoDeployment, RepoItem, RepoVmInfo } from "@/lib/repo-types";
+import type { ProjectItem } from "@/lib/project-types";
+import { VmTerminal } from "@/components/assistant-ui/vm-terminal";
 import { ProjectConversationsProvider } from "@/lib/project-conversations-context";
-import { ReposProvider } from "@/lib/repos-context";
+import { ProjectsProvider } from "@/lib/projects-context";
 import { PublishDialog } from "@/components/assistant-ui/publish-dialog";
 import {
   ArrowLeftIcon,
@@ -23,28 +24,32 @@ import { useIsMobile } from "@/hooks/use-mobile";
 type TerminalTab = {
   id: string;
   label: string;
-  url: string;
+  /** The named PTY session on the VM this tab is attached to. */
+  session: string;
   closable: boolean;
 };
 
+/** The session the project's dev server already runs in. */
+const DEV_SESSION = "dev";
+
 type OptimisticMetadataDetail = {
-  repoId: string;
+  projectId: string;
   conversationId: string;
-  repoName: string;
+  projectName: string;
   conversationTitle: string;
 };
 
 type ThreadStateDetail = {
-  repoId: string | null;
+  projectId: string | null;
   isRunning: boolean;
 };
 
-export function RepoWorkspaceShell({
-  repoId,
+export function ProjectWorkspaceShell({
+  projectId,
   children,
   selectedConversationIdOverride,
 }: {
-  repoId: string | null;
+  projectId: string | null;
   children: React.ReactNode;
   selectedConversationIdOverride?: string | null;
 }) {
@@ -55,95 +60,62 @@ export function RepoWorkspaceShell({
     pathname.split("/").filter(Boolean)[1] ??
     null;
 
-  const [repos, setRepos] = useState<RepoItem[]>([]);
-  const [reposLoading, setReposLoading] = useState(true);
+  const [projects, setProjects] = useState<ProjectItem[]>([]);
+  const [projectsLoading, setProjectsLoading] = useState(true);
   const [threadIsRunning, setThreadIsRunning] = useState(false);
-  const hasDeployingRepo = repos.some((repo) =>
-    repo.deployments.some((deployment) => deployment.state === "deploying"),
+  const hasPublishingProject = projects.some((project) =>
+    project.releases.some((release) => release.state === "publishing"),
   );
 
-  const loadRepos = useCallback(async () => {
-    const response = await fetch("/api/repos", { cache: "no-store" });
-    if (!response.ok) {
-      setReposLoading(false);
-      return;
+  const loadProjects = useCallback(async () => {
+    const response = await fetch("/api/projects", { cache: "no-store" });
+    if (response.ok) {
+      const data = (await response.json()) as { projects?: ProjectItem[] };
+      setProjects(data.projects ?? []);
     }
-
-    const data = await response.json();
-    const nextRepos: RepoItem[] = Array.isArray(data.repositories)
-      ? data.repositories.map(
-          (repo: {
-            id: string;
-            name?: string;
-            metadata?: {
-              vm?: RepoVmInfo;
-              conversations?: RepoItem["conversations"];
-              deployments?: RepoDeployment[];
-              productionDomain?: string | null;
-              productionDeploymentId?: string | null;
-            };
-          }) => ({
-            id: repo.id,
-            name: repo.name ?? "Untitled Repo",
-            vm: repo.metadata?.vm ?? null,
-            conversations: Array.isArray(repo.metadata?.conversations)
-              ? repo.metadata.conversations
-              : [],
-            deployments: Array.isArray(repo.metadata?.deployments)
-              ? repo.metadata.deployments
-              : [],
-            productionDomain:
-              typeof repo.metadata?.productionDomain === "string"
-                ? repo.metadata.productionDomain
-                : null,
-            productionDeploymentId:
-              typeof repo.metadata?.productionDeploymentId === "string"
-                ? repo.metadata.productionDeploymentId
-                : null,
-          }),
-        )
-      : [];
-
-    setRepos(nextRepos);
-    setReposLoading(false);
+    setProjectsLoading(false);
   }, []);
 
   useEffect(() => {
-    loadRepos();
-  }, [loadRepos]);
+    loadProjects();
+  }, [loadProjects]);
 
   useEffect(() => {
-    if (!repoId) return;
-    loadRepos();
-  }, [loadRepos, repoId]);
+    if (!projectId) return;
+    loadProjects();
+  }, [loadProjects, projectId]);
 
   useEffect(() => {
-    if (!threadIsRunning && !hasDeployingRepo) return;
+    if (!threadIsRunning && !hasPublishingProject) return;
     const interval = window.setInterval(() => {
-      void loadRepos();
+      void loadProjects();
     }, 10000);
     return () => {
       window.clearInterval(interval);
     };
-  }, [loadRepos, threadIsRunning, hasDeployingRepo]);
+  }, [loadProjects, threadIsRunning, hasPublishingProject]);
 
   useEffect(() => {
-    const handleReposUpdated = () => {
-      void loadRepos();
+    const handleProjectsUpdated = () => {
+      void loadProjects();
     };
 
-    window.addEventListener("adorable:repos-updated", handleReposUpdated);
+    window.addEventListener("adorable:projects-updated", handleProjectsUpdated);
     return () => {
-      window.removeEventListener("adorable:repos-updated", handleReposUpdated);
+      window.removeEventListener(
+        "adorable:projects-updated",
+        handleProjectsUpdated,
+      );
     };
-  }, [loadRepos]);
+  }, [loadProjects]);
 
   useEffect(() => {
     const handleThreadState = (event: Event) => {
       const customEvent = event as CustomEvent<ThreadStateDetail>;
       const detail = customEvent.detail;
       if (!detail) return;
-      if (repoId && detail.repoId && detail.repoId !== repoId) return;
+      if (projectId && detail.projectId && detail.projectId !== projectId)
+        return;
       setThreadIsRunning(Boolean(detail.isRunning));
     };
 
@@ -157,26 +129,26 @@ export function RepoWorkspaceShell({
         handleThreadState as EventListener,
       );
     };
-  }, [repoId]);
+  }, [projectId]);
 
   useEffect(() => {
     const handleOptimisticMetadata = (event: Event) => {
       const customEvent = event as CustomEvent<OptimisticMetadataDetail>;
       const detail = customEvent.detail;
-      if (!detail?.repoId || !detail?.conversationId) return;
+      if (!detail?.projectId || !detail?.conversationId) return;
 
       const now = new Date().toISOString();
 
-      setRepos((previous) =>
-        previous.map((repo) => {
-          if (repo.id !== detail.repoId) return repo;
+      setProjects((previous) =>
+        previous.map((project) => {
+          if (project.id !== detail.projectId) return project;
 
-          const hasConversation = repo.conversations.some(
+          const hasConversation = project.conversations.some(
             (conversation) => conversation.id === detail.conversationId,
           );
 
           const nextConversations = hasConversation
-            ? repo.conversations.map((conversation) =>
+            ? project.conversations.map((conversation) =>
                 conversation.id === detail.conversationId
                   ? {
                       ...conversation,
@@ -192,12 +164,15 @@ export function RepoWorkspaceShell({
                   createdAt: now,
                   updatedAt: now,
                 },
-                ...repo.conversations,
+                ...project.conversations,
               ];
 
           return {
-            ...repo,
-            name: repo.name === "Untitled Repo" ? detail.repoName : repo.name,
+            ...project,
+            name:
+              project.name === "Untitled Project"
+                ? detail.projectName
+                : project.name,
             conversations: nextConversations,
           };
         }),
@@ -217,23 +192,23 @@ export function RepoWorkspaceShell({
   }, []);
 
   const handleSelectProject = useCallback(
-    (nextRepoId: string) => {
-      router.push(`/${nextRepoId}`);
+    (nextProjectId: string) => {
+      router.push(`/${nextProjectId}`);
     },
     [router],
   );
 
-  const selectedRepo = repoId
-    ? (repos.find((repo) => repo.id === repoId) ?? null)
+  const selectedProject = projectId
+    ? (projects.find((project) => project.id === projectId) ?? null)
     : null;
-  const showWorkspacePanel = Boolean(repoId);
+  const showWorkspacePanel = Boolean(projectId);
   const isMobile = useIsMobile();
   const [mobileView, setMobileView] = useState<"chat" | "preview">("chat");
 
   // Reset to chat view when navigating away
   useEffect(() => {
-    if (!repoId) setMobileView("chat");
-  }, [repoId]);
+    if (!projectId) setMobileView("chat");
+  }, [projectId]);
 
   // On mobile, compute which panel to show
   const gridColumns = (() => {
@@ -244,21 +219,21 @@ export function RepoWorkspaceShell({
 
   const conversationsContextValue = useMemo(
     () => ({
-      repoId,
-      conversations: selectedRepo?.conversations ?? [],
+      projectId,
+      conversations: selectedProject?.conversations ?? [],
       onSelectConversation: (conversationId: string) => {
-        if (repoId) {
-          router.push(`/${repoId}/${conversationId}`);
+        if (projectId) {
+          router.push(`/${projectId}/${conversationId}`);
         }
       },
     }),
-    [repoId, selectedRepo?.conversations, router],
+    [projectId, selectedProject?.conversations, router],
   );
 
   const onSetProductionDomain = useCallback(
-    async (nextRepoId: string, domain: string) => {
+    async (nextProjectId: string, domain: string) => {
       const response = await fetch(
-        `/api/repos/${nextRepoId}/production-domain`,
+        `/api/projects/${nextProjectId}/production-domain`,
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -273,48 +248,70 @@ export function RepoWorkspaceShell({
         throw new Error(data?.error ?? "Failed to configure production domain");
       }
 
-      await loadRepos();
+      await loadProjects();
     },
-    [loadRepos],
+    [loadProjects],
   );
 
-  const onPromoteDeployment = useCallback(
-    async (nextRepoId: string, deploymentId: string) => {
-      const response = await fetch(`/api/repos/${nextRepoId}/promote`, {
+  /** Build the current dev code onto the project's production VM. */
+  const onPublish = useCallback(
+    async (nextProjectId: string, message: string) => {
+      const response = await fetch(`/api/projects/${nextProjectId}/publish`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ deploymentId }),
+        body: JSON.stringify({ message }),
       });
 
       if (!response.ok) {
         const data = (await response.json().catch(() => null)) as {
           error?: string;
         } | null;
-        throw new Error(data?.error ?? "Failed to promote deployment");
+        throw new Error(data?.error ?? "Failed to publish");
       }
 
-      await loadRepos();
+      await loadProjects();
     },
-    [loadRepos],
+    [loadProjects],
   );
 
-  const reposContextValue = useMemo(
+  /** Put production back on an earlier release. */
+  const onRollback = useCallback(
+    async (nextProjectId: string, releaseId: string) => {
+      const response = await fetch(`/api/projects/${nextProjectId}/rollback`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ releaseId }),
+      });
+
+      if (!response.ok) {
+        const data = (await response.json().catch(() => null)) as {
+          error?: string;
+        } | null;
+        throw new Error(data?.error ?? "Failed to roll back");
+      }
+
+      await loadProjects();
+    },
+    [loadProjects],
+  );
+
+  const projectsContextValue = useMemo(
     () => ({
-      repos,
-      isLoading: reposLoading,
+      projects,
+      isLoading: projectsLoading,
       onSelectProject: handleSelectProject,
     }),
-    [repos, reposLoading, handleSelectProject],
+    [projects, projectsLoading, handleSelectProject],
   );
 
   const iframeRef = useRef<HTMLIFrameElement>(null);
 
   return (
-    <ReposProvider value={reposContextValue}>
+    <ProjectsProvider value={projectsContextValue}>
       <ProjectConversationsProvider value={conversationsContextValue}>
         <div className="flex h-full min-h-0 w-full flex-col overflow-hidden">
           {/* Unified top bar */}
-          {repoId && selectedRepo && (
+          {projectId && selectedProject && (
             <div
               className={cn(
                 "shrink-0 border-b bg-background transition-[grid-template-columns] duration-500 ease-in-out",
@@ -332,11 +329,11 @@ export function RepoWorkspaceShell({
                     onClick={() => {
                       if (selectedConversationId) {
                         window.dispatchEvent(
-                          new CustomEvent("adorable:go-to-repo", {
-                            detail: { repoId },
+                          new CustomEvent("adorable:go-to-project", {
+                            detail: { projectId },
                           }),
                         );
-                        router.push(`/${repoId}`);
+                        router.push(`/${projectId}`);
                       } else {
                         window.dispatchEvent(new Event("adorable:go-home"));
                         router.push("/");
@@ -369,11 +366,12 @@ export function RepoWorkspaceShell({
                     <span className="text-sm font-medium">Chat</span>
                   </button>
                   <div className="ml-auto">
-                    {selectedRepo.vm?.previewUrl && (
+                    {selectedProject.previewUrl && (
                       <PublishDialog
-                        repo={selectedRepo}
+                        project={selectedProject}
                         onSetProductionDomain={onSetProductionDomain}
-                        onPromoteDeployment={onPromoteDeployment}
+                        onPublish={onPublish}
+                        onRollback={onRollback}
                       />
                     )}
                   </div>
@@ -390,13 +388,14 @@ export function RepoWorkspaceShell({
                       : "pointer-events-none opacity-0",
                   )}
                 >
-                  {showWorkspacePanel && selectedRepo.vm?.previewUrl && (
+                  {showWorkspacePanel && selectedProject.previewUrl && (
                     <BrowserControls
-                      previewUrl={selectedRepo.vm.previewUrl}
+                      previewUrl={selectedProject.previewUrl}
                       iframeRef={iframeRef}
-                      repo={selectedRepo}
+                      project={selectedProject}
                       onSetProductionDomain={onSetProductionDomain}
-                      onPromoteDeployment={onPromoteDeployment}
+                      onPublish={onPublish}
+                      onRollback={onRollback}
                     />
                   )}
                 </div>
@@ -432,11 +431,8 @@ export function RepoWorkspaceShell({
               )}
             >
               {showWorkspacePanel &&
-                (selectedRepo?.vm?.previewUrl ? (
-                  <AppPreview
-                    metadata={selectedRepo.vm}
-                    iframeRef={iframeRef}
-                  />
+                (selectedProject?.previewUrl ? (
+                  <AppPreview project={selectedProject} iframeRef={iframeRef} />
                 ) : (
                   <PreviewPlaceholder />
                 ))}
@@ -462,7 +458,7 @@ export function RepoWorkspaceShell({
           )}
         </div>
       </ProjectConversationsProvider>
-    </ReposProvider>
+    </ProjectsProvider>
   );
 }
 
@@ -524,63 +520,56 @@ function PreviewPlaceholder() {
 }
 
 function AppPreview({
-  metadata,
+  project,
   iframeRef,
 }: {
-  metadata: RepoVmInfo;
+  project: ProjectItem;
   iframeRef: React.RefObject<HTMLIFrameElement | null>;
 }) {
   const [extraTerminals, setExtraTerminals] = useState<TerminalTab[]>([]);
   const [activeTab, setActiveTab] = useState("dev-server");
   const [counter, setCounter] = useState(1);
   const [iframeLoaded, setIframeLoaded] = useState(false);
-  const [loadedTerminals, setLoadedTerminals] = useState<Set<string>>(
-    new Set(),
-  );
-
-  const markTerminalLoaded = useCallback((id: string) => {
-    setLoadedTerminals((prev) => new Set(prev).add(id));
-  }, []);
 
   useEffect(() => {
     setIframeLoaded(false);
-  }, [metadata.previewUrl]);
+  }, [project.previewUrl]);
 
+  /**
+   * Terminal sessions are named on the VM, so a tab's name is all the state a
+   * new terminal needs: the guest creates the shell on first connect and keeps
+   * it alive afterwards.
+   */
   const addTerminal = useCallback(() => {
-    if (!metadata.additionalTerminalsUrl) return;
     const id = `terminal-${counter}`;
-    setExtraTerminals((prev) => [
-      ...prev,
+    setExtraTerminals((previous) => [
+      ...previous,
       {
         id,
         label: `Terminal ${counter}`,
-        url: metadata.additionalTerminalsUrl,
+        session: `shell-${counter}`,
         closable: true,
       },
     ]);
     setActiveTab(id);
-    setCounter((c) => c + 1);
-  }, [counter, metadata.additionalTerminalsUrl]);
+    setCounter((current) => current + 1);
+  }, [counter]);
 
   const closeTerminal = useCallback(
     (id: string) => {
-      setExtraTerminals((prev) => prev.filter((t) => t.id !== id));
+      setExtraTerminals((previous) => previous.filter((tab) => tab.id !== id));
       if (activeTab === id) setActiveTab("dev-server");
     },
     [activeTab],
   );
 
   const allTabs: TerminalTab[] = [
-    ...(metadata.devCommandTerminalUrl
-      ? [
-          {
-            id: "dev-server",
-            label: "Dev Server",
-            url: metadata.devCommandTerminalUrl,
-            closable: false,
-          },
-        ]
-      : []),
+    {
+      id: "dev-server",
+      label: "Dev Server",
+      session: DEV_SESSION,
+      closable: false,
+    },
     ...extraTerminals,
   ];
 
@@ -600,7 +589,7 @@ function AppPreview({
           )}
           <iframe
             ref={iframeRef}
-            src={metadata.previewUrl}
+            src={project.previewUrl}
             className={cn(
               "h-full w-full transition-opacity duration-300",
               iframeLoaded ? "opacity-100" : "opacity-0",
@@ -646,36 +635,27 @@ function AppPreview({
             </button>
           ))}
 
-          {metadata.additionalTerminalsUrl && (
-            <button
-              type="button"
-              onClick={addTerminal}
-              className="ml-1 rounded p-1 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-              title="New terminal"
-            >
-              <PlusIcon className="size-3.5" />
-            </button>
-          )}
+          <button
+            type="button"
+            onClick={addTerminal}
+            className="ml-1 rounded p-1 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+            title="New terminal"
+          >
+            <PlusIcon className="size-3.5" />
+          </button>
         </div>
 
         <div className="relative min-h-0 flex-1 bg-[rgb(30,30,30)]">
           {allTabs.map((tab) => (
-            <iframe
+            <VmTerminal
               key={tab.id}
-              src={tab.url}
-              className={cn(
-                "absolute inset-0 h-full w-full transition-opacity duration-500",
-                loadedTerminals.has(tab.id) ? "opacity-100" : "opacity-0",
-              )}
+              projectId={project.id}
+              session={tab.session}
+              className="absolute inset-0 h-full w-full p-1"
+              // Kept mounted so a background terminal keeps receiving output.
               style={{ display: activeTab === tab.id ? "block" : "none" }}
-              onLoad={() => markTerminalLoaded(tab.id)}
             />
           ))}
-          {allTabs.length === 0 && (
-            <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
-              No terminal selected
-            </div>
-          )}
         </div>
       </div>
     </div>
@@ -685,15 +665,17 @@ function AppPreview({
 function BrowserControls({
   previewUrl,
   iframeRef,
-  repo,
+  project,
   onSetProductionDomain,
-  onPromoteDeployment,
+  onPublish,
+  onRollback,
 }: {
   previewUrl: string;
   iframeRef: React.RefObject<HTMLIFrameElement | null>;
-  repo: RepoItem;
-  onSetProductionDomain: (repoId: string, domain: string) => Promise<void>;
-  onPromoteDeployment: (repoId: string, deploymentId: string) => Promise<void>;
+  project: ProjectItem;
+  onSetProductionDomain: (projectId: string, domain: string) => Promise<void>;
+  onPublish: (projectId: string, message: string) => Promise<void>;
+  onRollback: (projectId: string, releaseId: string) => Promise<void>;
 }) {
   const [urlValue, setUrlValue] = useState(() => {
     try {
@@ -789,9 +771,10 @@ function BrowserControls({
       </form>
       <div className="ml-1.5">
         <PublishDialog
-          repo={repo}
+          project={project}
           onSetProductionDomain={onSetProductionDomain}
-          onPromoteDeployment={onPromoteDeployment}
+          onPublish={onPublish}
+          onRollback={onRollback}
         />
       </div>
     </>

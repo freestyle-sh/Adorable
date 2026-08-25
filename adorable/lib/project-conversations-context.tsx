@@ -1,23 +1,19 @@
 "use client";
 
 import { createContext, useContext } from "react";
+import type { ProjectConversationSummary } from "@/lib/project-types";
 
-export type ProjectConversation = {
-  id: string;
-  title: string;
-  createdAt: string;
-  updatedAt: string;
-};
+export type ProjectConversation = ProjectConversationSummary;
 
 type ProjectConversationsContextValue = {
-  repoId: string | null;
+  projectId: string | null;
   conversations: ProjectConversation[];
   onSelectConversation: (conversationId: string) => void;
 };
 
 const ProjectConversationsContext =
   createContext<ProjectConversationsContextValue>({
-    repoId: null,
+    projectId: null,
     conversations: [],
     onSelectConversation: () => {},
   });

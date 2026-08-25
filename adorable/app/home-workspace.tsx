@@ -2,34 +2,34 @@
 
 import { useCallback, useState } from "react";
 import { Assistant } from "./assistant";
-import { RepoWorkspaceShell } from "./[repoId]/repo-workspace-shell";
+import { ProjectWorkspaceShell } from "./[projectId]/project-workspace-shell";
 import { HomeWelcome } from "@/components/assistant-ui/home-welcome";
 
 export function HomeWorkspace() {
-  const [activeRepoId, setActiveRepoId] = useState<string | null>(null);
+  const [activeProjectId, setActiveProjectId] = useState<string | null>(null);
   const [activeConversationId, setActiveConversationId] = useState<
     string | null
   >(null);
 
   const handleActiveConversationChange = useCallback(
-    (repoId: string, conversationId: string) => {
-      setActiveRepoId(repoId);
+    (projectId: string, conversationId: string) => {
+      setActiveProjectId(projectId);
       setActiveConversationId(conversationId);
     },
     [],
   );
 
   return (
-    <RepoWorkspaceShell
-      repoId={activeRepoId}
+    <ProjectWorkspaceShell
+      projectId={activeProjectId}
       selectedConversationIdOverride={activeConversationId}
     >
       <Assistant
-        selectedRepoId={activeRepoId}
+        selectedProjectId={activeProjectId}
         selectedConversationId={activeConversationId}
         onActiveConversationChange={handleActiveConversationChange}
         welcome={<HomeWelcome />}
       />
-    </RepoWorkspaceShell>
+    </ProjectWorkspaceShell>
   );
 }

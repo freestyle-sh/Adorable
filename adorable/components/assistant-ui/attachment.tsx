@@ -74,7 +74,7 @@ const AttachmentPreview: FC<AttachmentPreviewProps> = ({ src }) => {
         "block h-auto max-h-[80vh] w-auto max-w-full object-contain",
         isLoaded
           ? "aui-attachment-preview-image-loaded"
-          : "aui-attachment-preview-image-loading invisible"
+          : "aui-attachment-preview-image-loading invisible",
       )}
       onLoad={() => setIsLoaded(true)}
     />
@@ -94,7 +94,7 @@ const AttachmentPreviewDialog: FC<PropsWithChildren> = ({ children }) => {
       >
         {children}
       </DialogTrigger>
-      <DialogContent className="aui-attachment-preview-dialog-content p-2 sm:max-w-3xl [&>button]:rounded-full [&>button]:bg-foreground/60 [&>button]:p-1 [&>button]:opacity-100 [&>button]:ring-0! [&_svg]:text-background [&>button]:hover:[&_svg]:text-destructive">
+      <DialogContent className="aui-attachment-preview-dialog-content p-2 sm:max-w-3xl [&_svg]:text-background [&>button]:rounded-full [&>button]:bg-foreground/60 [&>button]:p-1 [&>button]:opacity-100 [&>button]:ring-0! [&>button]:hover:[&_svg]:text-destructive">
         <DialogTitle className="aui-sr-only sr-only">
           Image Attachment Preview
         </DialogTitle>
@@ -143,8 +143,9 @@ const AttachmentUI: FC = () => {
       case "file":
         return "File";
       default:
-        const _exhaustiveCheck: never = type;
-        throw new Error(`Unknown attachment type: ${_exhaustiveCheck}`);
+        // The attachment type is an open union, so treat anything unrecognized
+        // as a plain attachment rather than throwing in a render path.
+        return "Attachment";
     }
   });
 
@@ -222,7 +223,7 @@ export const ComposerAddAttachment: FC = () => {
         side="bottom"
         variant="ghost"
         size="icon"
-        className="aui-composer-add-attachment size-8.5 rounded-full p-1 font-semibold text-xs hover:bg-muted-foreground/15 dark:border-muted-foreground/15 dark:hover:bg-muted-foreground/30"
+        className="aui-composer-add-attachment size-8.5 rounded-full p-1 text-xs font-semibold hover:bg-muted-foreground/15 dark:border-muted-foreground/15 dark:hover:bg-muted-foreground/30"
         aria-label="Add Attachment"
       >
         <PlusIcon className="aui-attachment-add-icon size-5 stroke-[1.5px]" />

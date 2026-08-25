@@ -2,11 +2,11 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { usePathname } from "next/navigation";
-import { RepoWorkspaceShell } from "./[repoId]/repo-workspace-shell";
+import { ProjectWorkspaceShell } from "./[projectId]/project-workspace-shell";
 import { ApiKeySettingsDialog } from "@/components/api-key-gate";
 
 type ActiveConversationDetail = {
-  repoId: string;
+  projectId: string;
   conversationId: string;
 };
 
@@ -20,7 +20,7 @@ export function WorkspaceFrame({ children }: { children: React.ReactNode }) {
   const routeRepoId = pathParts[0] ?? null;
   const routeConversationId = pathParts[1] ?? null;
 
-  const [activeRepoId, setActiveRepoId] = useState<string | null>(null);
+  const [activeProjectId, setActiveRepoId] = useState<string | null>(null);
   const [activeConversationId, setActiveConversationId] = useState<
     string | null
   >(null);
@@ -46,11 +46,11 @@ export function WorkspaceFrame({ children }: { children: React.ReactNode }) {
     const handleActiveConversation = (event: Event) => {
       const customEvent = event as CustomEvent<ActiveConversationDetail>;
       const detail = customEvent.detail;
-      if (!detail?.repoId || !detail?.conversationId) {
+      if (!detail?.projectId || !detail?.conversationId) {
         return;
       }
 
-      setActiveRepoId(detail.repoId);
+      setActiveRepoId(detail.projectId);
       setActiveConversationId(detail.conversationId);
     };
 
@@ -81,31 +81,31 @@ export function WorkspaceFrame({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     const handleGoToRepo = (event: Event) => {
-      const customEvent = event as CustomEvent<{ repoId: string }>;
+      const customEvent = event as CustomEvent<{ projectId: string }>;
       const detail = customEvent.detail;
-      if (!detail?.repoId) return;
-      setActiveRepoId(detail.repoId);
+      if (!detail?.projectId) return;
+      setActiveRepoId(detail.projectId);
       setActiveConversationId(null);
     };
 
     window.addEventListener(
-      "adorable:go-to-repo",
+      "adorable:go-to-project",
       handleGoToRepo as EventListener,
     );
     return () => {
       window.removeEventListener(
-        "adorable:go-to-repo",
+        "adorable:go-to-project",
         handleGoToRepo as EventListener,
       );
     };
   }, []);
 
-  const effectiveRepoId = routeRepoId ?? activeRepoId;
+  const effectiveRepoId = routeRepoId ?? activeProjectId;
   const effectiveConversationId = routeConversationId ?? activeConversationId;
 
   return (
-    <RepoWorkspaceShell
-      repoId={effectiveRepoId}
+    <ProjectWorkspaceShell
+      projectId={effectiveRepoId}
       selectedConversationIdOverride={effectiveConversationId}
     >
       {children}
@@ -113,6 +113,6 @@ export function WorkspaceFrame({ children }: { children: React.ReactNode }) {
       <div className="fixed bottom-3 left-3 z-50 md:right-3 md:left-auto">
         <ApiKeySettingsDialog />
       </div>
-    </RepoWorkspaceShell>
+    </ProjectWorkspaceShell>
   );
 }

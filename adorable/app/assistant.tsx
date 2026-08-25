@@ -35,17 +35,20 @@ const extractUserPrompt = (messages: UIMessage[]): string | null => {
 
 export const Assistant = ({
   initialMessages,
-  selectedRepoId = null,
+  selectedProjectId = null,
   selectedConversationId = null,
   onThreadStateChange,
   onActiveConversationChange,
   welcome,
 }: {
   initialMessages?: UIMessage[];
-  selectedRepoId?: string | null;
+  selectedProjectId?: string | null;
   selectedConversationId?: string | null;
   onThreadStateChange?: (next: ThreadState) => void;
-  onActiveConversationChange?: (repoId: string, conversationId: string) => void;
+  onActiveConversationChange?: (
+    projectId: string,
+    conversationId: string,
+  ) => void;
   welcome?: ReactNode;
 }) => {
   const resolvedInitialMessages = initialMessages ?? EMPTY_MESSAGES;
@@ -54,18 +57,20 @@ export const Assistant = ({
     resolvedInitialMessages,
   );
   const [runtimeVersion, setRuntimeVersion] = useState(0);
-  const [localRepoId, setLocalRepoId] = useState<string | null>(selectedRepoId);
+  const [localProjectId, setLocalProjectId] = useState<string | null>(
+    selectedProjectId,
+  );
   const [localConversationId, setLocalConversationId] = useState<string | null>(
     selectedConversationId,
   );
-  const activeRepoIdRef = useRef<string | null>(selectedRepoId);
+  const activeProjectIdRef = useRef<string | null>(selectedProjectId);
   const activeConversationIdRef = useRef<string | null>(selectedConversationId);
   const onActiveConversationChangeRef = useRef(onActiveConversationChange);
   const chatSessionIdRef = useRef(
     selectedConversationId
       ? `conversation:${selectedConversationId}`
-      : selectedRepoId
-        ? `repo:${selectedRepoId}:draft`
+      : selectedProjectId
+        ? `project:${selectedProjectId}:draft`
         : "home:draft",
   );
 
@@ -74,18 +79,18 @@ export const Assistant = ({
   }, [resolvedInitialMessages]);
 
   useEffect(() => {
-    setLocalRepoId((previous) => selectedRepoId ?? previous);
+    setLocalProjectId((previous) => selectedProjectId ?? previous);
     setLocalConversationId((previous) => selectedConversationId ?? previous);
-  }, [selectedConversationId, selectedRepoId]);
+  }, [selectedConversationId, selectedProjectId]);
 
   useEffect(() => {
-    if (selectedRepoId) {
-      activeRepoIdRef.current = selectedRepoId;
+    if (selectedProjectId) {
+      activeProjectIdRef.current = selectedProjectId;
     }
     if (selectedConversationId) {
       activeConversationIdRef.current = selectedConversationId;
     }
-  }, [selectedConversationId, selectedRepoId]);
+  }, [selectedConversationId, selectedProjectId]);
 
   useEffect(() => {
     onActiveConversationChangeRef.current = onActiveConversationChange;
@@ -94,9 +99,9 @@ export const Assistant = ({
   useEffect(() => {
     const handleGoHome = () => {
       setSeedMessages(EMPTY_MESSAGES);
-      setLocalRepoId(null);
+      setLocalProjectId(null);
       setLocalConversationId(null);
-      activeRepoIdRef.current = null;
+      activeProjectIdRef.current = null;
       activeConversationIdRef.current = null;
       chatSessionIdRef.current = `home:draft:${Date.now()}`;
       setRuntimeVersion((version) => version + 1);
@@ -110,26 +115,26 @@ export const Assistant = ({
 
   useEffect(() => {
     const handleGoToRepo = (event: Event) => {
-      const customEvent = event as CustomEvent<{ repoId: string }>;
+      const customEvent = event as CustomEvent<{ projectId: string }>;
       const detail = customEvent.detail;
-      if (!detail?.repoId) return;
+      if (!detail?.projectId) return;
 
       setSeedMessages(EMPTY_MESSAGES);
-      setLocalRepoId(detail.repoId);
+      setLocalProjectId(detail.projectId);
       setLocalConversationId(null);
-      activeRepoIdRef.current = detail.repoId;
+      activeProjectIdRef.current = detail.projectId;
       activeConversationIdRef.current = null;
-      chatSessionIdRef.current = `repo:${detail.repoId}:draft:${Date.now()}`;
+      chatSessionIdRef.current = `project:${detail.projectId}:draft:${Date.now()}`;
       setRuntimeVersion((version) => version + 1);
     };
 
     window.addEventListener(
-      "adorable:go-to-repo",
+      "adorable:go-to-project",
       handleGoToRepo as EventListener,
     );
     return () => {
       window.removeEventListener(
-        "adorable:go-to-repo",
+        "adorable:go-to-project",
         handleGoToRepo as EventListener,
       );
     };
@@ -141,7 +146,7 @@ export const Assistant = ({
       const githubRepoName = customEvent.detail?.githubRepoName?.trim();
       if (!githubRepoName) return;
 
-      const response = await fetch("/api/repos", {
+      const response = await fetch("/api/projects", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -154,29 +159,29 @@ export const Assistant = ({
       }
 
       const data = await response.json();
-      const repoId = data.id as string | undefined;
+      const projectId = data.id as string | undefined;
       const conversationId = data.conversationId as string | undefined;
 
-      if (!repoId || !conversationId) {
+      if (!projectId || !conversationId) {
         return;
       }
 
-      const nextPath = `/${repoId}/${conversationId}`;
+      const nextPath = `/${projectId}/${conversationId}`;
       window.history.replaceState(window.history.state, "", nextPath);
       setSeedMessages(EMPTY_MESSAGES);
-      setLocalRepoId(repoId);
+      setLocalProjectId(projectId);
       setLocalConversationId(conversationId);
-      activeRepoIdRef.current = repoId;
+      activeProjectIdRef.current = projectId;
       activeConversationIdRef.current = conversationId;
       chatSessionIdRef.current = `conversation:${conversationId}`;
       setRuntimeVersion((version) => version + 1);
-      onActiveConversationChangeRef.current?.(repoId, conversationId);
+      onActiveConversationChangeRef.current?.(projectId, conversationId);
       window.dispatchEvent(
         new CustomEvent("adorable:active-conversation", {
-          detail: { repoId, conversationId },
+          detail: { projectId, conversationId },
         }),
       );
-      window.dispatchEvent(new Event("adorable:repos-updated"));
+      window.dispatchEvent(new Event("adorable:projects-updated"));
     };
 
     window.addEventListener(
@@ -192,20 +197,23 @@ export const Assistant = ({
   }, []);
 
   const ensureActiveConversation = useCallback(
-    async (requestedRepoName?: string, requestedConversationTitle?: string) => {
-      const activeRepoId = activeRepoIdRef.current;
+    async (
+      requestedProjectName?: string,
+      requestedConversationTitle?: string,
+    ) => {
+      const activeProjectId = activeProjectIdRef.current;
       const activeConversationId = activeConversationIdRef.current;
 
-      if (activeRepoId && activeConversationId) {
+      if (activeProjectId && activeConversationId) {
         return {
-          repoId: activeRepoId,
+          projectId: activeProjectId,
           conversationId: activeConversationId,
         };
       }
 
-      if (activeRepoId) {
+      if (activeProjectId) {
         const response = await fetch(
-          `/api/repos/${activeRepoId}/conversations`,
+          `/api/projects/${activeProjectId}/conversations`,
           {
             method: "POST",
             headers: {
@@ -221,7 +229,7 @@ export const Assistant = ({
 
         if (!response.ok) {
           throw new Error(
-            "Failed to create a conversation for the selected repo.",
+            "Failed to create a conversation for the selected project.",
           );
         }
 
@@ -232,32 +240,35 @@ export const Assistant = ({
           throw new Error("Conversation creation did not return an id.");
         }
 
-        const nextPath = `/${activeRepoId}/${conversationId}`;
+        const nextPath = `/${activeProjectId}/${conversationId}`;
         window.history.replaceState(window.history.state, "", nextPath);
         setLocalConversationId(conversationId);
         activeConversationIdRef.current = conversationId;
-        onActiveConversationChangeRef.current?.(activeRepoId, conversationId);
+        onActiveConversationChangeRef.current?.(
+          activeProjectId,
+          conversationId,
+        );
         window.dispatchEvent(
           new CustomEvent("adorable:active-conversation", {
-            detail: { repoId: activeRepoId, conversationId },
+            detail: { projectId: activeProjectId, conversationId },
           }),
         );
 
         return {
-          repoId: activeRepoId,
+          projectId: activeProjectId,
           conversationId,
         };
       }
 
-      const response = await fetch("/api/repos", {
+      const response = await fetch("/api/projects", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
         body: JSON.stringify(
-          requestedRepoName || requestedConversationTitle
+          requestedProjectName || requestedConversationTitle
             ? {
-                ...(requestedRepoName ? { name: requestedRepoName } : {}),
+                ...(requestedProjectName ? { name: requestedProjectName } : {}),
                 ...(requestedConversationTitle
                   ? { conversationTitle: requestedConversationTitle }
                   : {}),
@@ -266,32 +277,32 @@ export const Assistant = ({
         ),
       });
       if (!response.ok) {
-        throw new Error("Failed to create a repository for this chat.");
+        throw new Error("Failed to create a project for this chat.");
       }
 
       const data = await response.json();
-      const repoId = data.id as string | undefined;
+      const projectId = data.id as string | undefined;
       const conversationId = data.conversationId as string | undefined;
 
-      if (!repoId || !conversationId) {
-        throw new Error("Repository creation did not return ids.");
+      if (!projectId || !conversationId) {
+        throw new Error("Project creation did not return ids.");
       }
 
-      const nextPath = `/${repoId}/${conversationId}`;
+      const nextPath = `/${projectId}/${conversationId}`;
       window.history.replaceState(window.history.state, "", nextPath);
-      setLocalRepoId(repoId);
+      setLocalProjectId(projectId);
       setLocalConversationId(conversationId);
-      activeRepoIdRef.current = repoId;
+      activeProjectIdRef.current = projectId;
       activeConversationIdRef.current = conversationId;
-      onActiveConversationChangeRef.current?.(repoId, conversationId);
+      onActiveConversationChangeRef.current?.(projectId, conversationId);
       window.dispatchEvent(
         new CustomEvent("adorable:active-conversation", {
-          detail: { repoId, conversationId },
+          detail: { projectId, conversationId },
         }),
       );
 
       return {
-        repoId,
+        projectId,
         conversationId,
       };
     },
@@ -306,7 +317,7 @@ export const Assistant = ({
       window.dispatchEvent(
         new CustomEvent("adorable:thread-state", {
           detail: {
-            repoId: activeRepoIdRef.current,
+            projectId: activeProjectIdRef.current,
             isRunning: next.isRunning,
           },
         }),
@@ -315,20 +326,20 @@ export const Assistant = ({
     [onThreadStateChange],
   );
 
-  const dispatchReposUpdated = useCallback(() => {
-    const repoId = activeRepoIdRef.current;
-    if (!repoId) return;
+  const dispatchProjectsUpdated = useCallback(() => {
+    const projectId = activeProjectIdRef.current;
+    if (!projectId) return;
 
     window.dispatchEvent(
-      new CustomEvent("adorable:repos-updated", {
-        detail: { repoId },
+      new CustomEvent("adorable:projects-updated", {
+        detail: { projectId },
       }),
     );
   }, []);
 
   const handleChatFinish = useCallback(() => {
-    dispatchReposUpdated();
-  }, [dispatchReposUpdated]);
+    dispatchProjectsUpdated();
+  }, [dispatchProjectsUpdated]);
 
   const chat = useChat<UIMessage>({
     id: runtimeKey,
@@ -336,10 +347,10 @@ export const Assistant = ({
       api: "/api/chat",
       prepareSendMessagesRequest: async (options) => {
         const prompt = extractUserPrompt(options.messages);
-        const repoName = prompt ? prompt.slice(0, 50) : undefined;
+        const projectName = prompt ? prompt.slice(0, 50) : undefined;
         const conversationTitle = prompt ? prompt.slice(0, 60) : undefined;
         const active = await ensureActiveConversation(
-          repoName,
+          projectName,
           conversationTitle,
         );
 
@@ -347,9 +358,9 @@ export const Assistant = ({
           window.dispatchEvent(
             new CustomEvent("adorable:metadata-optimistic", {
               detail: {
-                repoId: active.repoId,
+                projectId: active.projectId,
                 conversationId: active.conversationId,
-                repoName: repoName,
+                projectName: projectName,
                 conversationTitle,
               },
             }),
@@ -364,7 +375,7 @@ export const Assistant = ({
             id: undefined,
             trigger: "submit-message",
             messageId: undefined,
-            repoId: active.repoId,
+            projectId: active.projectId,
             conversationId: active.conversationId,
           },
         };

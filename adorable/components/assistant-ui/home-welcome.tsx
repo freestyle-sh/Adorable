@@ -12,26 +12,19 @@ import {
 } from "@/components/ui/dialog";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
-import { useRepos } from "@/lib/repos-context";
-import type { RepoItem } from "@/lib/repo-types";
+import { useProjects } from "@/lib/projects-context";
+import type { ProjectItem } from "@/lib/project-types";
 import { type FC, useState } from "react";
 import { GithubIcon } from "lucide-react";
 
-function getPreviewUrl(repo: RepoItem): string | null {
-  // prefer production domain
-  if (repo.productionDomain) {
-    return `https://${repo.productionDomain}`;
-  }
-  // fall back to live deployment url
-  const live = repo.deployments.find((d) => d.state === "live");
-  if (live?.url) return live.url;
-  // fall back to vm preview
-  if (repo.vm?.previewUrl) return repo.vm.previewUrl;
-  return null;
+/** Show what a visitor would see: production once published, dev otherwise. */
+function getPreviewUrl(project: ProjectItem): string | null {
+  if (project.liveReleaseId) return project.productionUrl;
+  return project.previewUrl || null;
 }
 
 export const HomeWelcome: FC = () => {
-  const { repos, isLoading, onSelectProject } = useRepos();
+  const { projects, isLoading, onSelectProject } = useProjects();
   const [githubDialogOpen, setGithubDialogOpen] = useState(false);
   const [githubRepoInput, setGithubRepoInput] = useState("");
   const [githubRepoError, setGithubRepoError] = useState<string | null>(null);
@@ -53,7 +46,7 @@ export const HomeWelcome: FC = () => {
     setGithubRepoInput("");
   };
 
-  const hasProjects = repos.length > 0;
+  const hasProjects = projects.length > 0;
   const showProjects = isLoading || hasProjects;
 
   return (
@@ -119,13 +112,13 @@ export const HomeWelcome: FC = () => {
           ) : hasProjects ? (
             <>
               <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
-                {repos.map((repo, index) => {
-                  const previewUrl = getPreviewUrl(repo);
+                {projects.map((project, index) => {
+                  const previewUrl = getPreviewUrl(project);
                   return (
                     <button
-                      key={repo.id}
+                      key={project.id}
                       type="button"
-                      onClick={() => onSelectProject(repo.id)}
+                      onClick={() => onSelectProject(project.id)}
                       className="group animate-in overflow-hidden rounded-xl border border-border/50 bg-card/50 text-left transition-all duration-200 fill-mode-both fade-in hover:border-border hover:ring-1 hover:ring-ring/20"
                       style={
                         {
@@ -139,7 +132,7 @@ export const HomeWelcome: FC = () => {
                         {previewUrl ? (
                           <iframe
                             src={previewUrl}
-                            title={`${repo.name} preview`}
+                            title={`${project.name} preview`}
                             className="pointer-events-none absolute inset-0 h-[200%] w-[200%] origin-top-left scale-50 border-0"
                             tabIndex={-1}
                             loading="lazy"
@@ -157,10 +150,11 @@ export const HomeWelcome: FC = () => {
                           <div
                             className={cn(
                               "h-2 w-2 rounded-full ring-2 ring-card/80",
-                              repo.deployments.some((d) => d.state === "live")
+                              project.liveReleaseId
                                 ? "bg-emerald-500"
-                                : repo.deployments.some(
-                                      (d) => d.state === "deploying",
+                                : project.releases.some(
+                                      (release) =>
+                                        release.state === "publishing",
                                     )
                                   ? "bg-amber-500"
                                   : "bg-muted-foreground/30",
@@ -171,16 +165,16 @@ export const HomeWelcome: FC = () => {
                       {/* Info */}
                       <div className="px-3 py-2.5">
                         <p className="truncate text-sm font-medium text-foreground group-hover:text-foreground">
-                          {repo.name}
+                          {project.name}
                         </p>
                         <p className="mt-0.5 text-xs text-muted-foreground/50">
-                          {repo.conversations.length} chat
-                          {repo.conversations.length !== 1 ? "s" : ""}
-                          {repo.deployments.length > 0 && (
+                          {project.conversations.length} chat
+                          {project.conversations.length !== 1 ? "s" : ""}
+                          {project.releases.length > 0 && (
                             <>
                               {" · "}
-                              {repo.deployments.length} deploy
-                              {repo.deployments.length !== 1 ? "s" : ""}
+                              {project.releases.length} release
+                              {project.releases.length !== 1 ? "s" : ""}
                             </>
                           )}
                         </p>
@@ -196,7 +190,7 @@ export const HomeWelcome: FC = () => {
                 className="mx-auto flex animate-in items-center gap-2 rounded-lg px-3 py-1.5 text-xs text-muted-foreground/40 transition-colors fill-mode-both fade-in hover:text-muted-foreground"
                 style={
                   {
-                    "--tw-animation-delay": `${repos.length * 75}ms`,
+                    "--tw-animation-delay": `${projects.length * 75}ms`,
                     "--tw-animation-duration": "400ms",
                   } as React.CSSProperties
                 }
@@ -212,7 +206,7 @@ export const HomeWelcome: FC = () => {
       <Dialog open={githubDialogOpen} onOpenChange={setGithubDialogOpen}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>Use GitHub Repo</DialogTitle>
+            <DialogTitle>Use GitHub Project</DialogTitle>
             <DialogDescription>
               Enter a repository in owner/repo format. If you haven't installed
               the GitHub App yet, install it first.
@@ -225,7 +219,7 @@ export const HomeWelcome: FC = () => {
                 setGithubRepoInput(event.target.value);
                 setGithubRepoError(null);
               }}
-              placeholder="owner/repository"
+              placeholder="owner/repo"
               onKeyDown={(event) => {
                 if (event.key === "Enter") {
                   event.preventDefault();

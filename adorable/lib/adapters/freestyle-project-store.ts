@@ -1,11 +1,13 @@
 import type { ProjectStore } from "@/lib/ports";
+import type {
+  RepoDeploymentSummary,
+  RepoMetadata,
+} from "@/lib/project-metadata";
 import {
   addRepoDeployment,
   promoteRepoDeploymentToProduction,
   readRepoMetadata,
-  type RepoDeploymentSummary,
   resolveSourceRepoId,
-  type RepoMetadata,
   setRepoProductionDomain,
   writeRepoMetadata,
 } from "@/lib/repo-storage";

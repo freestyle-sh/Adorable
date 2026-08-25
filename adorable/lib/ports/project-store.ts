@@ -1,7 +1,7 @@
 import type {
   RepoDeploymentSummary,
   RepoMetadata,
-} from "@/lib/repo-storage";
+} from "@/lib/project-metadata";
 
 export interface ProjectStore {
   readMetadata(repoId: string): Promise<RepoMetadata | null>;

@@ -9,7 +9,6 @@ import type {
 
 export const ADORABLE_METADATA_PATH = "metadata.json";
 export const ADORABLE_CONVERSATIONS_DIR = "conversations";
-export const ADORABLE_WRAPPER_REPO_PREFIX = "adorable-meta - ";
 
 type StoredRepoMetadata = {
   version: 2;

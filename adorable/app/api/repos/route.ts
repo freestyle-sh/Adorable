@@ -6,8 +6,8 @@ import {
 import { createFreestyleAccessContext } from "@/lib/application/access-control-service";
 import { projectApplicationService } from "@/lib/application/project-application-service";
 import { getOrCreateIdentitySession } from "@/lib/identity-session";
+import { ADORABLE_WRAPPER_REPO_PREFIX } from "@/lib/project-constants";
 import type { RepoDeploymentSummary } from "@/lib/project-metadata";
-import { ADORABLE_WRAPPER_REPO_PREFIX } from "@/lib/repo-storage";
 
 const toDisplayRepoName = (name?: string | null) => {
   if (!name) return undefined;

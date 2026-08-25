@@ -1,13 +1,13 @@
 import { type UIMessage } from "ai";
 import { cookies } from "next/headers";
 import {
+  aiSdkModelProvider,
   freestyleConversationStore,
   freestyleProjectStore,
   freestyleSandboxProvider,
 } from "@/lib/adapters";
 import { createTools as createVmTools } from "@/lib/create-tools";
 import { createFreestyleAccessContext } from "@/lib/application/access-control-service";
-import { streamLlmResponse } from "@/lib/llm-provider";
 import { getOrCreateIdentitySession } from "@/lib/identity-session";
 import { SYSTEM_PROMPT } from "@/lib/system-prompt";
 
@@ -87,7 +87,7 @@ export async function POST(req: Request) {
     );
   }
 
-  const llm = await streamLlmResponse({
+  const llm = await aiSdkModelProvider.streamResponse({
     system: SYSTEM_PROMPT,
     messages,
     tools,

@@ -5,7 +5,6 @@ import {
   freestyleProjectStore,
 } from "@/lib/adapters";
 import type { SandboxRuntime } from "@/lib/ports";
-import { getDomainForCommit } from "./deployment-status";
 import { WORKDIR, VM_PORT } from "./vars";
 
 type CreateToolsOptions = {
@@ -350,7 +349,8 @@ export const createTools = (
           const commitSha = await getHeadCommitSha();
           if (!commitSha) return;
 
-          const deploymentDomain = getDomainForCommit(commitSha);
+          const deploymentDomain =
+            freestyleDeploymentProvider.getDomainForCommit(commitSha);
           const metadata = await freestyleProjectStore.readMetadata(
             options.metadataRepoId!,
           );

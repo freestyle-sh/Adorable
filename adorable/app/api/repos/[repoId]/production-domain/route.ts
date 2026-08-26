@@ -1,9 +1,11 @@
 import { NextResponse } from "next/server";
 import { freestyleProjectStore } from "@/lib/adapters";
 import { createFreestyleAccessContext } from "@/lib/application/access-control-service";
+import {
+  isValidProductionDomain,
+  normalizeProductionDomain,
+} from "@/lib/application/production-domain";
 import { getOrCreateIdentitySession } from "@/lib/identity-session";
-
-const PRODUCTION_SUFFIX = ".style.dev";
 
 const assertRepoAccess = async (repoId: string) => {
   const { identityId, identity } = await getOrCreateIdentitySession();
@@ -12,21 +14,6 @@ const assertRepoAccess = async (repoId: string) => {
     identity,
   });
   return access.hasGitRepoAccess(repoId);
-};
-
-const normalizeDomain = (domain: string) => {
-  const trimmed = domain.trim().toLowerCase();
-  const withoutProtocol = trimmed.replace(/^https?:\/\//, "");
-  return withoutProtocol.split("/")[0] ?? "";
-};
-
-const isValidProductionDomain = (domain: string) => {
-  return (
-    domain.endsWith(PRODUCTION_SUFFIX) &&
-    /^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?(?:\.[a-z0-9-]+)*\.style\.dev$/.test(
-      domain,
-    )
-  );
 };
 
 export async function POST(
@@ -47,7 +34,7 @@ export async function POST(
     requestedDomain = "";
   }
 
-  const domain = normalizeDomain(requestedDomain);
+  const domain = normalizeProductionDomain(requestedDomain);
   if (!domain || !isValidProductionDomain(domain)) {
     return NextResponse.json(
       { error: "Domain must be a valid hostname ending in .style.dev" },

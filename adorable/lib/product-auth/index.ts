@@ -8,13 +8,17 @@ export type { CurrentUser } from "./current-user";
 export { getSafeAuthRedirectPath } from "./auth-redirect";
 export {
   assertProjectOwnership,
+  createOwnedProject,
   createSupabaseProjectOwnershipStore,
   hasProjectOwnership,
   projectFromRow,
   projectMatchesRepoId,
+  resolveOwnedProjectName,
   ProjectOwnershipRequiredError,
+  toProjectInsert,
 } from "./project-ownership";
 export type {
+  CreateOwnedProjectInput,
   ProductProject,
   ProjectOwnershipStore,
 } from "./project-ownership";

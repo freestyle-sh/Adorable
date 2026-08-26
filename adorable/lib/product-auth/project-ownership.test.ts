@@ -3,6 +3,7 @@ import {
   assertProjectOwnership,
   createOwnedProject,
   hasProjectOwnership,
+  listProjectsForUser,
   projectMatchesRepoId,
   ProjectOwnershipRequiredError,
   resolveOwnedProjectName,
@@ -27,6 +28,8 @@ const createStore = (
   result: ProductProject | null,
   calls: Array<{ userId: string; repoId: string }> = [],
   createCalls: CreateOwnedProjectInput[] = [],
+  listResult: ProductProject[] = [],
+  listCalls: string[] = [],
 ): ProjectOwnershipStore => ({
   async createOwnedProject(input) {
     createCalls.push(input);
@@ -35,6 +38,10 @@ const createStore = (
   async findProjectForUserByRepoId(userId, repoId) {
     calls.push({ userId, repoId });
     return result;
+  },
+  async listProjectsForUser(userId) {
+    listCalls.push(userId);
+    return listResult.filter((nextProject) => nextProject.archivedAt === null);
   },
 });
 
@@ -126,6 +133,44 @@ describe("createOwnedProject", () => {
         store,
       ),
     ).rejects.toBe(error);
+  });
+});
+
+describe("listProjectsForUser", () => {
+  it("lists active projects for the provided owner", async () => {
+    const listCalls: string[] = [];
+    const archivedProject: ProductProject = {
+      ...project,
+      id: "archived-project-id",
+      wrapperRepoId: "archived-wrapper-repo-id",
+      archivedAt: "2026-08-26T00:00:00.000Z",
+    };
+
+    await expect(
+      listProjectsForUser(
+        "user-id",
+        createStore(null, [], [], [project, archivedProject], listCalls),
+      ),
+    ).resolves.toEqual([project]);
+
+    expect(listCalls).toEqual(["user-id"]);
+  });
+
+  it("propagates ownership list errors", async () => {
+    const error = new Error("list failed");
+    const store = {
+      async createOwnedProject() {
+        return project;
+      },
+      async findProjectForUserByRepoId() {
+        return null;
+      },
+      async listProjectsForUser() {
+        throw error;
+      },
+    } satisfies ProjectOwnershipStore;
+
+    await expect(listProjectsForUser("user-id", store)).rejects.toBe(error);
   });
 });
 

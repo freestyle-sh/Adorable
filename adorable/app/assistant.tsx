@@ -22,6 +22,11 @@ type CreateFromGithubDetail = {
 
 const EMPTY_MESSAGES: UIMessage[] = [];
 
+const redirectToLogin = () => {
+  const next = `${window.location.pathname}${window.location.search}`;
+  window.location.assign(`/login?next=${encodeURIComponent(next)}`);
+};
+
 const extractUserPrompt = (messages: UIMessage[]): string | null => {
   const firstUserMessage = messages.find((message) => message.role === "user");
   if (!firstUserMessage) return null;
@@ -150,6 +155,9 @@ export const Assistant = ({
       });
 
       if (!response.ok) {
+        if (response.status === 401) {
+          redirectToLogin();
+        }
         return;
       }
 
@@ -266,6 +274,9 @@ export const Assistant = ({
         ),
       });
       if (!response.ok) {
+        if (response.status === 401) {
+          redirectToLogin();
+        }
         throw new Error("Failed to create a repository for this chat.");
       }
 

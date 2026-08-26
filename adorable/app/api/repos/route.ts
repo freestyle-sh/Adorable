@@ -6,6 +6,13 @@ import {
 import { createFreestyleAccessContext } from "@/lib/application/access-control-service";
 import { projectApplicationService } from "@/lib/application/project-application-service";
 import { getOrCreateIdentitySession } from "@/lib/identity-session";
+import {
+  AuthenticationRequiredError,
+  createOwnedProject,
+  type CurrentUser,
+  requireCurrentUser,
+  resolveOwnedProjectName,
+} from "@/lib/product-auth";
 import { ADORABLE_WRAPPER_REPO_PREFIX } from "@/lib/project-constants";
 import type { RepoDeploymentSummary } from "@/lib/project-metadata";
 
@@ -105,6 +112,19 @@ export async function GET() {
 }
 
 export async function POST(req: Request) {
+  let currentUser: CurrentUser;
+  try {
+    currentUser = await requireCurrentUser();
+  } catch (error) {
+    if (error instanceof AuthenticationRequiredError) {
+      return NextResponse.json(
+        { error: error.message },
+        { status: error.status },
+      );
+    }
+    throw error;
+  }
+
   const { identityId, identity } = await getOrCreateIdentitySession();
 
   let requestedName: string | undefined;
@@ -143,6 +163,16 @@ export async function POST(req: Request) {
       }),
     },
   );
+
+  await createOwnedProject({
+    ownerUserId: currentUser.id,
+    wrapperRepoId: result.id,
+    sourceRepoId: result.metadata.sourceRepoId,
+    name: resolveOwnedProjectName({
+      requestedName,
+      githubRepoName,
+    }),
+  });
 
   return NextResponse.json({
     id: result.id,

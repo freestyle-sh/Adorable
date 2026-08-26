@@ -1,9 +1,13 @@
 import { describe, expect, it } from "vitest";
 import {
   assertProjectOwnership,
+  createOwnedProject,
   hasProjectOwnership,
   projectMatchesRepoId,
   ProjectOwnershipRequiredError,
+  resolveOwnedProjectName,
+  toProjectInsert,
+  type CreateOwnedProjectInput,
   type ProductProject,
   type ProjectOwnershipStore,
 } from "@/lib/product-auth/project-ownership";
@@ -22,7 +26,12 @@ const project: ProductProject = {
 const createStore = (
   result: ProductProject | null,
   calls: Array<{ userId: string; repoId: string }> = [],
+  createCalls: CreateOwnedProjectInput[] = [],
 ): ProjectOwnershipStore => ({
+  async createOwnedProject(input) {
+    createCalls.push(input);
+    return project;
+  },
   async findProjectForUserByRepoId(userId, repoId) {
     calls.push({ userId, repoId });
     return result;
@@ -34,6 +43,89 @@ describe("projectMatchesRepoId", () => {
     expect(projectMatchesRepoId(project, "wrapper-repo-id")).toBe(true);
     expect(projectMatchesRepoId(project, "source-repo-id")).toBe(true);
     expect(projectMatchesRepoId(project, "other-repo-id")).toBe(false);
+  });
+});
+
+describe("toProjectInsert", () => {
+  it("maps ownership input to the projects insert shape", () => {
+    expect(
+      toProjectInsert({
+        ownerUserId: "user-id",
+        wrapperRepoId: "wrapper-repo-id",
+        sourceRepoId: "source-repo-id",
+        name: "Project",
+      }),
+    ).toEqual({
+      owner_user_id: "user-id",
+      wrapper_repo_id: "wrapper-repo-id",
+      source_repo_id: "source-repo-id",
+      name: "Project",
+    });
+  });
+});
+
+describe("resolveOwnedProjectName", () => {
+  it("uses requestedName before githubRepoName", () => {
+    expect(
+      resolveOwnedProjectName({
+        requestedName: "Requested",
+        githubRepoName: "owner/github-name",
+      }),
+    ).toBe("Requested");
+  });
+
+  it("infers the name from githubRepoName when requestedName is missing", () => {
+    expect(
+      resolveOwnedProjectName({
+        githubRepoName: "owner/github-name",
+      }),
+    ).toBe("github-name");
+  });
+
+  it("falls back to Project", () => {
+    expect(resolveOwnedProjectName({})).toBe("Project");
+  });
+});
+
+describe("createOwnedProject", () => {
+  it("persists ownership through the provided store", async () => {
+    const createCalls: CreateOwnedProjectInput[] = [];
+    const input = {
+      ownerUserId: "user-id",
+      wrapperRepoId: "wrapper-repo-id",
+      sourceRepoId: "source-repo-id",
+      name: "Project",
+    };
+
+    await expect(
+      createOwnedProject(input, createStore(null, [], createCalls)),
+    ).resolves.toBe(project);
+
+    expect(createCalls).toEqual([input]);
+  });
+
+  it("propagates ownership store errors", async () => {
+    const error = new Error("insert failed");
+    const store = {
+      async createOwnedProject() {
+        throw error;
+      },
+      async findProjectForUserByRepoId() {
+        return null;
+      },
+    } satisfies ProjectOwnershipStore;
+
+    await expect(
+      createOwnedProject(
+        {
+          ownerUserId: "user-id",
+          wrapperRepoId: "wrapper-repo-id",
+          sourceRepoId: "source-repo-id",
+          name: "Project",
+        },
+        store,
+      ),
+    ).rejects.toBe(error);
   });
 });
 

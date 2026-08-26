@@ -2,6 +2,7 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 import type { Database } from "@/lib/supabase/database.types";
 
 type ProjectRow = Database["public"]["Tables"]["projects"]["Row"];
+type ProjectInsert = Database["public"]["Tables"]["projects"]["Insert"];
 
 export type ProductProject = {
   id: string;
@@ -14,7 +15,15 @@ export type ProductProject = {
   archivedAt: string | null;
 };
 
+export type CreateOwnedProjectInput = {
+  ownerUserId: string;
+  wrapperRepoId: string;
+  sourceRepoId: string;
+  name: string;
+};
+
 export type ProjectOwnershipStore = {
+  createOwnedProject(input: CreateOwnedProjectInput): Promise<ProductProject>;
   findProjectForUserByRepoId(
     userId: string,
     repoId: string,
@@ -46,6 +55,24 @@ export const projectMatchesRepoId = (
   repoId: string,
 ) => project.wrapperRepoId === repoId || project.sourceRepoId === repoId;
 
+export const toProjectInsert = (
+  input: CreateOwnedProjectInput,
+): ProjectInsert => ({
+  owner_user_id: input.ownerUserId,
+  wrapper_repo_id: input.wrapperRepoId,
+  source_repo_id: input.sourceRepoId,
+  name: input.name,
+});
+
+export const resolveOwnedProjectName = ({
+  requestedName,
+  githubRepoName,
+}: {
+  requestedName?: string;
+  githubRepoName?: string;
+}): string =>
+  requestedName ?? githubRepoName?.split("/").pop()?.trim() ?? "Project";
+
 export const createSupabaseProjectOwnershipStore = async (): Promise<
   ProjectOwnershipStore
 > => {
@@ -69,6 +96,16 @@ export const createSupabaseProjectOwnershipStore = async (): Promise<
   };
 
   return {
+    async createOwnedProject(input) {
+      const { data, error } = await supabase
+        .from("projects")
+        .insert(toProjectInsert(input))
+        .select("*")
+        .single();
+
+      if (error) throw error;
+      return projectFromRow(data);
+    },
     async findProjectForUserByRepoId(userId, repoId) {
       return (
         (await findByColumn(userId, "wrapper_repo_id", repoId)) ??
@@ -76,6 +113,14 @@ export const createSupabaseProjectOwnershipStore = async (): Promise<
       );
     },
   };
+};
+
+export const createOwnedProject = async (
+  input: CreateOwnedProjectInput,
+  store?: ProjectOwnershipStore,
+): Promise<ProductProject> => {
+  const resolvedStore = store ?? (await createSupabaseProjectOwnershipStore());
+  return resolvedStore.createOwnedProject(input);
 };
 
 export const hasProjectOwnership = async (

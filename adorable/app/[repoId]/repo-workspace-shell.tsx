@@ -39,6 +39,11 @@ type ThreadStateDetail = {
   isRunning: boolean;
 };
 
+const redirectToLogin = () => {
+  const next = `${window.location.pathname}${window.location.search}`;
+  window.location.assign(`/login?next=${encodeURIComponent(next)}`);
+};
+
 export function RepoWorkspaceShell({
   repoId,
   children,
@@ -65,6 +70,9 @@ export function RepoWorkspaceShell({
   const loadRepos = useCallback(async () => {
     const response = await fetch("/api/repos", { cache: "no-store" });
     if (!response.ok) {
+      if (response.status === 401) {
+        redirectToLogin();
+      }
       setReposLoading(false);
       return;
     }

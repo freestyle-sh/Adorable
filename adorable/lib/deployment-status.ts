@@ -38,6 +38,16 @@ export const getDomainForCommit = (commitSha: string) => {
   return `${commitSha.slice(0, 12)}-${DEPLOYMENT_DOMAIN_SUFFIX}`;
 };
 
+export const mapDeploymentStateToUiState = (
+  deploymentState: string,
+): DeploymentUiStatus["state"] => {
+  return deploymentState === "deployed"
+    ? "live"
+    : deploymentState === "failed"
+      ? "failed"
+      : "deploying";
+};
+
 export const getDeploymentStatusForLatestCommit = async (
   repoId: string,
   isAgentRunning: boolean,
@@ -76,12 +86,7 @@ export const getDeploymentStatusForLatestCommit = async (
     };
   }
 
-  const state: DeploymentUiStatus["state"] =
-    match.state === "deployed"
-      ? "live"
-      : match.state === "failed"
-        ? "failed"
-        : "deploying";
+  const state = mapDeploymentStateToUiState(match.state);
 
   return {
     state,
@@ -117,11 +122,7 @@ export const getDeploymentTimelineFromCommits = async (
 
     const state: DeploymentTimelineEntry["state"] = !match
       ? "idle"
-      : match.state === "deployed"
-        ? "live"
-        : match.state === "failed"
-          ? "failed"
-          : "deploying";
+      : mapDeploymentStateToUiState(match.state);
 
     return {
       commitSha: commit.sha,

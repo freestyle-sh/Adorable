@@ -28,6 +28,7 @@ export type ProjectOwnershipStore = {
     userId: string,
     repoId: string,
   ): Promise<ProductProject | null>;
+  listProjectsForUser(userId: string): Promise<ProductProject[]>;
 };
 
 export class ProjectOwnershipRequiredError extends Error {
@@ -112,6 +113,17 @@ export const createSupabaseProjectOwnershipStore = async (): Promise<
         (await findByColumn(userId, "source_repo_id", repoId))
       );
     },
+    async listProjectsForUser(userId) {
+      const { data, error } = await supabase
+        .from("projects")
+        .select("*")
+        .eq("owner_user_id", userId)
+        .is("archived_at", null)
+        .order("updated_at", { ascending: false });
+
+      if (error) throw error;
+      return data.map(projectFromRow);
+    },
   };
 };
 
@@ -121,6 +133,14 @@ export const createOwnedProject = async (
 ): Promise<ProductProject> => {
   const resolvedStore = store ?? (await createSupabaseProjectOwnershipStore());
   return resolvedStore.createOwnedProject(input);
+};
+
+export const listProjectsForUser = async (
+  userId: string,
+  store?: ProjectOwnershipStore,
+): Promise<ProductProject[]> => {
+  const resolvedStore = store ?? (await createSupabaseProjectOwnershipStore());
+  return resolvedStore.listProjectsForUser(userId);
 };
 
 export const hasProjectOwnership = async (

@@ -11,6 +11,7 @@ export {
   createOwnedProject,
   createSupabaseProjectOwnershipStore,
   hasProjectOwnership,
+  listProjectsForUser,
   projectFromRow,
   projectMatchesRepoId,
   resolveOwnedProjectName,

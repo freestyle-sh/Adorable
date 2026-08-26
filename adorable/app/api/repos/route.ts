@@ -10,6 +10,7 @@ import {
   AuthenticationRequiredError,
   createOwnedProject,
   type CurrentUser,
+  listProjectsForUser,
   requireCurrentUser,
   resolveOwnedProjectName,
 } from "@/lib/product-auth";
@@ -87,12 +88,43 @@ const toRepoResponse = async (
 };
 
 export async function GET() {
+  let currentUser: CurrentUser;
+  try {
+    currentUser = await requireCurrentUser();
+  } catch (error) {
+    if (error instanceof AuthenticationRequiredError) {
+      return NextResponse.json(
+        { error: error.message },
+        { status: error.status },
+      );
+    }
+    throw error;
+  }
+
   const { identityId, identity } = await getOrCreateIdentitySession();
   const access = createFreestyleAccessContext({ identityId, identity });
+  const ownedProjects = await listProjectsForUser(currentUser.id);
   const repositories = await access.listGitRepositories(200);
-  const wrapperRepositories = repositories.filter((repo) =>
+  const legacyWrapperRepositories = repositories.filter((repo) =>
     (repo.name ?? "").startsWith(ADORABLE_WRAPPER_REPO_PREFIX),
   );
+  const wrapperRepositoriesById = new Map<
+    string,
+    { id: string; name?: string | null }
+  >();
+
+  for (const project of ownedProjects) {
+    wrapperRepositoriesById.set(project.wrapperRepoId, {
+      id: project.wrapperRepoId,
+      name: project.name,
+    });
+  }
+
+  for (const repo of legacyWrapperRepositories) {
+    if (!wrapperRepositoriesById.has(repo.id)) {
+      wrapperRepositoriesById.set(repo.id, repo);
+    }
+  }
 
   let deploymentEntries: DeploymentEntry[] = [];
   try {
@@ -102,7 +134,9 @@ export async function GET() {
   }
 
   const items = await Promise.all(
-    wrapperRepositories.map((repo) => toRepoResponse(repo, deploymentEntries)),
+    Array.from(wrapperRepositoriesById.values()).map((repo) =>
+      toRepoResponse(repo, deploymentEntries),
+    ),
   );
 
   return NextResponse.json({

@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   DEPLOYMENT_DOMAIN_SUFFIX,
   getDomainForCommit,
+  mapDeploymentStateToUiState,
 } from "@/lib/deployment-status";
 
 describe("getDomainForCommit", () => {
@@ -19,5 +20,16 @@ describe("getDomainForCommit", () => {
 
   it("preserves the current empty string behavior", () => {
     expect(getDomainForCommit("")).toBe(`-${DEPLOYMENT_DOMAIN_SUFFIX}`);
+  });
+});
+
+describe("mapDeploymentStateToUiState", () => {
+  it.each([
+    { deploymentState: "deployed", uiState: "live" },
+    { deploymentState: "failed", uiState: "failed" },
+    { deploymentState: "building", uiState: "deploying" },
+    { deploymentState: "queued", uiState: "deploying" },
+  ])("maps $deploymentState to $uiState", ({ deploymentState, uiState }) => {
+    expect(mapDeploymentStateToUiState(deploymentState)).toBe(uiState);
   });
 });

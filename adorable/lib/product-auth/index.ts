@@ -5,6 +5,7 @@ export {
   requireCurrentUser,
 } from "./current-user";
 export type { CurrentUser } from "./current-user";
+export { getSafeAuthRedirectPath } from "./auth-redirect";
 export {
   assertProjectOwnership,
   createSupabaseProjectOwnershipStore,

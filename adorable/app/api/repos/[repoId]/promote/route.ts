@@ -4,8 +4,8 @@ import {
   freestyleProjectStore,
 } from "@/lib/adapters";
 import { createFreestyleAccessContext } from "@/lib/application/access-control-service";
+import { deploymentBelongsToProject } from "@/lib/application/deployment-ownership";
 import { getOrCreateIdentitySession } from "@/lib/identity-session";
-import type { RepoMetadata } from "@/lib/project-metadata";
 
 const assertRepoAccess = async (repoId: string) => {
   const { identityId, identity } = await getOrCreateIdentitySession();
@@ -14,41 +14,6 @@ const assertRepoAccess = async (repoId: string) => {
     identity,
   });
   return access.hasGitRepoAccess(repoId);
-};
-
-type DeploymentEntry = {
-  deploymentId: string;
-  domains: string[];
-};
-
-const ownsDeployment = async (
-  metadata: RepoMetadata,
-  deploymentId: string,
-) => {
-  if (
-    metadata.deployments.some(
-      (deployment) => deployment.deploymentId === deploymentId,
-    )
-  ) {
-    return true;
-  }
-
-  const knownDomains = new Set(
-    metadata.deployments.map((deployment) => deployment.domain),
-  );
-  if (knownDomains.size === 0) return false;
-
-  try {
-    const entries = await freestyleDeploymentProvider.listDeployments(500);
-    const match = (entries as DeploymentEntry[]).find(
-      (entry) => entry.deploymentId === deploymentId,
-    );
-    return Boolean(
-      match?.domains.some((domain) => knownDomains.has(domain)),
-    );
-  } catch {
-    return false;
-  }
 };
 
 export async function POST(
@@ -91,7 +56,11 @@ export async function POST(
     );
   }
 
-  if (!(await ownsDeployment(metadata, deploymentId))) {
+  if (
+    !(await deploymentBelongsToProject(metadata, deploymentId, (limit) =>
+      freestyleDeploymentProvider.listDeployments(limit),
+    ))
+  ) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
